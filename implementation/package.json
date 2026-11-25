@@ -1,0 +1,11 @@
+{
+  "name": "pulsepass-monorepo",
+  "private": true,
+  "scripts": {
+    "test:shared": "npm --prefix shared test",
+    "test:web": "npm --prefix web test",
+    "test:android": "npm --prefix android test",
+    "build:web": "npm --prefix web run build",
+    "lint:web": "npm --prefix web run lint"
+  }
+}

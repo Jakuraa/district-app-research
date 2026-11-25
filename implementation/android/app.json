@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "PulsePass",
+    "slug": "pulsepass-events",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "pulsepass",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.pulsepass.events",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#5B3DF5"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

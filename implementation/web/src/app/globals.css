@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root {
+  --pp-primary: #5b3df5;
+  --pp-surface: #ffffff;
+  --pp-surface-muted: #f6f7fb;
+  --pp-ink: #111319;
+  --pp-ink-muted: #5e6473;
+}
+
+html,
+body {
+  background-color: var(--pp-surface-muted);
+  color: var(--pp-ink);
+  overflow-x: hidden;
+}

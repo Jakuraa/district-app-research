@@ -1,0 +1,34 @@
+{
+  "name": "@pulsepass/web",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "db:migrate": "node db/migrate-and-seed.mjs"
+  },
+  "dependencies": {
+    "@pulsepass/shared": "file:../shared",
+    "next": "^15.5.14",
+    "pg": "^8.13.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "playwright": "^1.50.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3"
+  }
+}
