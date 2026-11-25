@@ -1,0 +1,49 @@
+# Local app binaries and private research captures
+local-artifacts/**
+!local-artifacts/.gitkeep
+*.apk
+*.aab
+*.xapk
+*.apks
+
+# Signing and keystores
+*.jks
+*.keystore
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# Environment, secrets, and local deployment state
+.env
+.env.*
+!.env.example
+.vercel
+.vercel/**
+*.secret
+*credentials*.json
+*service-account*.json
+
+# Research sensitive captures outside local-artifacts
+*personal*screenshot*
+*sensitive*
+
+# Tooling, builds, and OS
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+.expo/
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+Thumbs.db
+*.log
+logs/
