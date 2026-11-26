@@ -20,3 +20,13 @@
 3. Pull the user's own installed base/split APKs into `local-artifacts/apk/` (gitignored) and compute SHA-256 digests.
 4. Run REA static inspection (`inspect_android_package`, `decode_android_resources`, `search_android_classes`) to document manifest activities, deep links, permissions, and native navigation patterns.
 5. Observe Android-specific mobile UX (bottom navigation, hardware back behaviour, native bottom sheets, TalkBack labels).
+
+## Diagnostic Update (2026-11-26T19:14+05:30)
+
+- `adb devices -l` (and REA `list_adb_devices` / `ev_e9d022a2...`): **Empty device list** — USB device not reaching ADB.
+- `system_profiler SPUSBDataType`: No Android phone or USB debugging interface enumerated on the host USB buses (only USB 3.0 Hub card reader/LAN, USB 2.0 Hub keyboard/mouse/billboard, Apple T2 bus).
+- `npx expo-doctor` on `implementation/android` (15/18 passed, 3 failed):
+  1. Missing peer dependencies `expo-constants` and `expo-linking` required by `expo-router` (Expo warns: *"Your app may crash outside of Expo Go without these dependencies"*).
+  2. `app.json` field `android.edgeToEdgeEnabled` is not allowed in Expo SDK 52 schema.
+  3. `react-native@0.76.6` vs expected `0.76.9` for installed Expo SDK 52.
+- Physical device logcat capture and District APK inspection remain blocked until an authorized Android phone is connected via a data-capable USB cable in File Transfer + USB Debugging mode.

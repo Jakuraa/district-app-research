@@ -20,5 +20,7 @@ Track one row per feature. Status values: `not-started`, `observed`, `specified`
 | Account | My bookings and ticket display | not-started | — | Requires authenticated user session with bookings |
 | Support | Cancellation, refund, help flows | not-started | — | Requires authenticated booking or `/contact` deep dive |
 | UX | Loading, empty, error, and success states | observed | `ev_0fafc9f7`, `ev_2edc505d` | Error retry states on offline/5xx responses |
-| UX | Android navigation, back behaviour, bottom sheets | not-started | — | Awaits connected authorized Android device + APK |
+| UX | Android navigation, back behaviour, bottom sheets | not-started | `ev_e9d022a2` | Awaits connected authorized Android device + APK (no USB device detected) |
 | Accessibility | Touch targets, labels, focus, contrast | observed | `ev_b54e2a34`, `ev_522a1a64`, `ev_24cea136` | Screen reader traversal on Android TalkBack awaits device |
+| Dining / Movies / Play | Public discovery vertical routes (`/dining`, `/movies`, `/play`) | observed | `ev_413ca2ea`, `ev_8b605622`, `ev_6199e806` | Authenticated seat/table/slot checkout internals remain unknown |
+| Organiser / Venue / Staff / Admin | Back-office portals, scanner, moderation, settlements | unknown | — | Not publicly observable without authorized District partner/admin portal; designed as original first-party NIGHTLIFEZ workflows |
