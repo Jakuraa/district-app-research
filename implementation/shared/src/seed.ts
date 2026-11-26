@@ -50,9 +50,39 @@ export const SEED_VENUES: Venue[] = [
       "Restrooms"
     ],
     sections: [
-      { id: "sec-vip", name: "Skydeck VIP", zoneLabel: "Front Stage Raised", tierId: "tier-solstice-vip", x: 30, y: 55, width: 240, height: 60, color: "#7C3AED" },
-      { id: "sec-pit", name: "Fan Pit Standing", zoneLabel: "Stage Front", tierId: "tier-solstice-pit", x: 30, y: 125, width: 240, height: 70, color: "#5B3DF5" },
-      { id: "sec-ga", name: "General Lawn", zoneLabel: "Main Arena", tierId: "tier-solstice-ga", x: 30, y: 205, width: 240, height: 85, color: "#16A34A" }
+      {
+        id: "sec-vip",
+        name: "Skydeck VIP",
+        zoneLabel: "Front Stage Raised",
+        tierId: "tier-solstice-vip",
+        x: 30,
+        y: 55,
+        width: 240,
+        height: 60,
+        color: "#7C3AED",
+        capacity: 80,
+        seatRows: [
+          { rowLabel: "V1", seatCount: 8, unavailableSeats: ["V1-1", "V1-2", "V1-3", "V1-4", "V1-5", "V1-6", "V1-7", "V1-8"] },
+          { rowLabel: "V2", seatCount: 8, unavailableSeats: ["V2-1", "V2-2", "V2-3", "V2-4", "V2-5", "V2-6", "V2-7", "V2-8"] }
+        ]
+      },
+      {
+        id: "sec-pit",
+        name: "Fan Pit Standing",
+        zoneLabel: "Stage Front",
+        tierId: "tier-solstice-pit",
+        x: 30,
+        y: 125,
+        width: 240,
+        height: 70,
+        color: "#5B3DF5",
+        capacity: 150,
+        seatRows: [
+          { rowLabel: "P1", seatCount: 8, unavailableSeats: ["P1-1", "P1-4"] },
+          { rowLabel: "P2", seatCount: 8, unavailableSeats: ["P2-7"] }
+        ]
+      },
+      { id: "sec-ga", name: "General Lawn", zoneLabel: "Main Arena", tierId: "tier-solstice-ga", x: 30, y: 205, width: 240, height: 85, color: "#16A34A", capacity: 400 }
     ]
   },
   {
@@ -98,8 +128,23 @@ export const SEED_VENUES: Venue[] = [
       "On-Site Paramedics"
     ],
     sections: [
-      { id: "sec-front", name: "Front Row Pods", zoneLabel: "Near Stage", tierId: "tier-indie-front", x: 40, y: 60, width: 220, height: 70, color: "#5B3DF5" },
-      { id: "sec-lawn", name: "Courtyard GA", zoneLabel: "Open Standing", tierId: "tier-indie-ga", x: 40, y: 145, width: 220, height: 110, color: "#16A34A" }
+      {
+        id: "sec-front",
+        name: "Front Row Pods",
+        zoneLabel: "Near Stage",
+        tierId: "tier-indie-front",
+        x: 40,
+        y: 60,
+        width: 220,
+        height: 70,
+        color: "#5B3DF5",
+        capacity: 60,
+        seatRows: [
+          { rowLabel: "A", seatCount: 8, unavailableSeats: ["A-3", "A-4"] },
+          { rowLabel: "B", seatCount: 8, unavailableSeats: [] }
+        ]
+      },
+      { id: "sec-lawn", name: "Courtyard GA", zoneLabel: "Open Standing", tierId: "tier-indie-ga", x: 40, y: 145, width: 220, height: 110, color: "#16A34A", capacity: 240 }
     ]
   },
   {
@@ -1048,5 +1093,135 @@ export const SEED_COLLECTIONS: EditorialCollection[] = [
     badge: "Destination",
     artworkUrl: "/art/col-coastal.svg",
     eventSlugs: ["tides-and-tempo-festival-goa-2026", "velvet-vinyl-sessions-chennai-2026"]
+  }
+];
+
+
+export const SEED_ORGANIZATIONS = [
+  {
+    id: "org-nightlifez-originals",
+    slug: "nightlifez-originals",
+    name: "NIGHTLIFEZ Originals",
+    legalName: "Nightlifez Live Experiences Pvt Ltd",
+    contactEmail: "organiser@nightlifez.test",
+    citySlug: "bengaluru",
+    approvalStatus: "APPROVED" as const,
+    rating: 92,
+    tenureLabel: "2 years hosting",
+    createdBy: "usr-organiser-owner",
+    createdAt: "2026-01-15T10:00:00Z"
+  },
+  {
+    id: "org-harbor-collective",
+    slug: "harbor-collective",
+    name: "Harbor Collective",
+    legalName: "Harbor Cultural Events LLP",
+    contactEmail: "harbor@nightlifez.test",
+    citySlug: "mumbai",
+    approvalStatus: "APPROVED" as const,
+    rating: 89,
+    tenureLabel: "3 years hosting",
+    createdBy: "usr-organiser-owner",
+    createdAt: "2026-02-10T10:00:00Z"
+  },
+  {
+    id: "org-coastal-pending",
+    slug: "coastal-sounds-guild",
+    name: "Coastal Sounds Guild",
+    legalName: "Coastal Sounds Guild LLP",
+    contactEmail: "coastal@nightlifez.test",
+    citySlug: "goa",
+    approvalStatus: "PENDING" as const,
+    rating: 80,
+    tenureLabel: "New partner",
+    createdBy: "usr-organiser-pending",
+    createdAt: "2026-11-20T10:00:00Z"
+  }
+];
+
+export const SEED_FEATURE_FLAGS = [
+  {
+    key: "inventory_holds_enabled",
+    enabled: true,
+    description: "Enable 10-minute server-side inventory holds during checkout",
+    updatedBy: "usr-super-admin",
+    updatedAt: "2026-11-26T00:00:00Z"
+  },
+  {
+    key: "offline_scanner_sync",
+    enabled: true,
+    description: "Allow staff devices to queue offline ticket scans and reconcile conflicts",
+    updatedBy: "usr-super-admin",
+    updatedAt: "2026-11-26T00:00:00Z"
+  },
+  {
+    key: "sandbox_payment_mode",
+    enabled: true,
+    description: "Keep all payments in DEMO_NO_CHARGE sandbox mode",
+    updatedBy: "usr-super-admin",
+    updatedAt: "2026-11-26T00:00:00Z"
+  },
+  {
+    key: "seat_level_selection",
+    enabled: true,
+    description: "Enable interactive seat selection in seated venue sections",
+    updatedBy: "usr-super-admin",
+    updatedAt: "2026-11-26T00:00:00Z"
+  }
+];
+
+export const SEED_NOTIFICATIONS = [
+  {
+    id: "notif-sys-1",
+    userId: null,
+    audience: "USER" as const,
+    title: "Solstice Soundwave Bengaluru — Doors open at 4:00 PM",
+    body: "Bring a valid government ID and your digital QR pass in Ticket Wallet.",
+    kind: "REMINDER" as const,
+    isRead: false,
+    createdAt: "2026-11-26T08:00:00Z"
+  },
+  {
+    id: "notif-org-1",
+    userId: null,
+    audience: "ORGANISER" as const,
+    title: "Pre-settlement reconciliation window open",
+    body: "Review attendee check-ins and refund requests before requesting a demo settlement batch.",
+    kind: "OPERATIONS" as const,
+    isRead: false,
+    createdAt: "2026-11-26T09:00:00Z"
+  },
+  {
+    id: "notif-staff-1",
+    userId: null,
+    audience: "STAFF" as const,
+    title: "Gate Scanner Protocol",
+    body: "Use offline scan queue only when gate Wi-Fi drops; sync immediately once online to detect duplicate scans.",
+    kind: "OPERATIONS" as const,
+    isRead: false,
+    createdAt: "2026-11-26T09:30:00Z"
+  }
+];
+
+export const SEED_SUPPORT_CASES = [
+  {
+    id: "case-1001",
+    userId: "usr-attendee-demo",
+    bookingId: null,
+    eventId: "evt-solstice-2026",
+    subject: "Clarification on wheelchair accessible deck entry gate",
+    category: "ACCESS" as const,
+    priority: "MEDIUM" as const,
+    status: "OPEN" as const,
+    assignedTo: "usr-support-agent",
+    notes: [
+      {
+        author: "asha@nightlifez.test",
+        text: "Confirming whether Gate B has step-free ramp access for Skydeck.",
+        createdAt: "2026-11-26T10:00:00Z"
+      }
+    ],
+    createdAt: "2026-11-26T10:00:00Z",
+    updatedAt: "2026-11-26T10:00:00Z"
   }
 ];

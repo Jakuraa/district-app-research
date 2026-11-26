@@ -1,3 +1,39 @@
+-- NIGHTLIFEZ Platform Relational Schema (PostgreSQL / Neon)
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  phone TEXT,
+  preferred_city_slug TEXT NOT NULL DEFAULT 'bengaluru',
+  favorite_categories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS organizations (
+  id TEXT PRIMARY KEY,
+  slug TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  legal_name TEXT NOT NULL,
+  contact_email TEXT NOT NULL,
+  city_slug TEXT NOT NULL,
+  approval_status TEXT NOT NULL DEFAULT 'PENDING',
+  rating INTEGER NOT NULL DEFAULT 85,
+  tenure_label TEXT NOT NULL DEFAULT 'New partner',
+  created_by TEXT REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS cities (
   slug TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -25,6 +61,10 @@ CREATE TABLE IF NOT EXISTS venues (
 
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS artwork_url TEXT;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS distance_km NUMERIC;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS organization_id TEXT;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'APPROVED';
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS policies_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS capacity_total INTEGER NOT NULL DEFAULT 500;
 
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
@@ -62,6 +102,21 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS age_limit TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS language TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS duration_label TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS distance_km NUMERIC;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS organization_id TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS lifecycle_status TEXT NOT NULL DEFAULT 'PUBLISHED';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS moderation_notes TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS event_occurrences (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ,
+  capacity INTEGER NOT NULL DEFAULT 500,
+  status TEXT NOT NULL DEFAULT 'AVAILABLE'
+);
 
 CREATE TABLE IF NOT EXISTS ticket_tiers (
   id TEXT PRIMARY KEY,
@@ -74,6 +129,21 @@ CREATE TABLE IF NOT EXISTS ticket_tiers (
   remaining_quota INTEGER NOT NULL,
   max_per_order INTEGER NOT NULL,
   sales_phase TEXT NOT NULL
+);
+
+ALTER TABLE ticket_tiers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+CREATE TABLE IF NOT EXISTS inventory_holds (
+  id TEXT PRIMARY KEY,
+  hold_token TEXT UNIQUE NOT NULL,
+  user_id TEXT,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  tier_id TEXT NOT NULL REFERENCES ticket_tiers(id) ON DELETE CASCADE,
+  quantity INTEGER NOT NULL,
+  seat_labels_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'ACTIVE',
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS offers (
@@ -90,6 +160,9 @@ CREATE TABLE IF NOT EXISTS offers (
   expires_at TIMESTAMPTZ NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS organization_id TEXT;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS used_count INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS bookings (
   id TEXT PRIMARY KEY,
@@ -112,6 +185,18 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS organization_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hold_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS occurrence_id TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'CONFIRMED';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_ref TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_idempotency ON bookings (idempotency_key) WHERE idempotency_key IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS booking_items (
   id SERIAL PRIMARY KEY,
   booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
@@ -119,4 +204,180 @@ CREATE TABLE IF NOT EXISTS booking_items (
   tier_name TEXT NOT NULL,
   quantity INTEGER NOT NULL,
   unit_price_inr INTEGER NOT NULL
+);
+
+ALTER TABLE booking_items ADD COLUMN IF NOT EXISTS seat_labels_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+CREATE TABLE IF NOT EXISTS payment_records (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'DEMO_SANDBOX',
+  mode TEXT NOT NULL DEFAULT 'DEMO_NO_CHARGE',
+  amount_inr INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  transaction_ref TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  tier_id TEXT NOT NULL REFERENCES ticket_tiers(id),
+  tier_name TEXT NOT NULL,
+  holder_name TEXT NOT NULL,
+  holder_email TEXT NOT NULL,
+  ticket_code TEXT UNIQUE NOT NULL,
+  qr_token TEXT UNIQUE NOT NULL,
+  seat_label TEXT,
+  status TEXT NOT NULL DEFAULT 'VALID',
+  checked_in_at TIMESTAMPTZ,
+  checked_in_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ticket_scan_logs (
+  id TEXT PRIMARY KEY,
+  ticket_id TEXT REFERENCES tickets(id),
+  ticket_code TEXT NOT NULL,
+  event_id TEXT NOT NULL,
+  scanned_by TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  scan_mode TEXT NOT NULL,
+  client_scan_id TEXT NOT NULL,
+  result TEXT NOT NULL,
+  message TEXT NOT NULL,
+  scanned_at TIMESTAMPTZ NOT NULL,
+  synced_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scan_logs_client_id ON ticket_scan_logs (device_id, client_scan_id);
+
+CREATE TABLE IF NOT EXISTS role_assignments (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  organization_id TEXT,
+  venue_slug TEXT,
+  event_id TEXT,
+  granted_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS staff_invitations (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL,
+  organization_id TEXT,
+  venue_slug TEXT,
+  event_id TEXT,
+  token TEXT UNIQUE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  invited_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS refund_requests (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  user_id TEXT,
+  organization_id TEXT,
+  amount_inr INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'REQUESTED',
+  reviewed_by TEXT,
+  resolution_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ledger_entries (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT,
+  booking_id TEXT,
+  refund_id TEXT,
+  settlement_id TEXT,
+  entry_type TEXT NOT NULL,
+  amount_inr INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  mode TEXT NOT NULL DEFAULT 'DEMO_LEDGER',
+  note TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS settlements (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  period_label TEXT NOT NULL,
+  gross_inr INTEGER NOT NULL,
+  fees_inr INTEGER NOT NULL,
+  refunds_inr INTEGER NOT NULL,
+  net_payout_inr INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  approved_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  settled_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS support_cases (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  booking_id TEXT,
+  event_id TEXT,
+  subject TEXT NOT NULL,
+  category TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'MEDIUM',
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  assigned_to TEXT,
+  notes_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  audience TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS feature_flags (
+  key TEXT PRIMARY KEY,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  description TEXT NOT NULL,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS saved_items (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL,
+  item_slug TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, item_type, item_slug)
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  actor_user_id TEXT,
+  actor_email TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  before_json JSONB,
+  after_json JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS master_categories (
+  key TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  color TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
 );

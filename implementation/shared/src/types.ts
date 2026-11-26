@@ -1,3 +1,5 @@
+import type { AppRole, RoleAssignmentRecord } from "./roles.ts";
+
 export type EventCategory =
   | "concerts"
   | "festivals"
@@ -18,11 +20,43 @@ export type SalesPhaseStatus =
   | "FINAL_RELEASE"
   | "SOLD_OUT";
 
+export type EventLifecycleStatus =
+  | "DRAFT"
+  | "PENDING_APPROVAL"
+  | "PUBLISHED"
+  | "PAUSED"
+  | "CANCELLED";
+
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+
 export type TierAvailability = "AVAILABLE" | "NEARLY_SOLD" | "SOLD_OUT";
 
 export type OfferKind = "PERCENT_CAP" | "FLAT" | "BOGO_TIER";
 
-export type PaymentState = "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED";
+export type PaymentState = "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED";
+
+export type BookingStatus = "CONFIRMED_DEMO" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED";
+
+export type TicketStatus = "VALID" | "USED" | "CANCELLED" | "REVOKED" | "EXPIRED";
+
+export type ScanResultCode =
+  | "VALID"
+  | "ALREADY_USED"
+  | "INVALID"
+  | "EXPIRED"
+  | "REVOKED"
+  | "CANCELLED"
+  | "WRONG_EVENT"
+  | "CONFLICT";
+
+export type RefundStatus =
+  | "REQUESTED"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "PROCESSED";
+
+export type SupportCaseStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 
 export interface City {
   slug: string;
@@ -30,6 +64,12 @@ export interface City {
   state: string;
   locality?: string;
   isPopular: boolean;
+}
+
+export interface SeatRowSpec {
+  rowLabel: string;
+  seatCount: number;
+  unavailableSeats?: string[];
 }
 
 export interface VenueSection {
@@ -42,6 +82,8 @@ export interface VenueSection {
   width: number;
   height: number;
   color: string;
+  capacity?: number;
+  seatRows?: SeatRowSpec[];
 }
 
 export interface Venue {
@@ -54,9 +96,27 @@ export interface Venue {
   openStatusLabel: string;
   artworkUrl?: string;
   distanceKm?: number;
+  organizationId?: string | null;
+  approvalStatus?: ApprovalStatus;
+  policies?: string[];
+  capacityTotal?: number;
   timings: { day: string; hours: string }[];
   facilities: string[];
   sections: VenueSection[];
+}
+
+export interface Organization {
+  id: string;
+  slug: string;
+  name: string;
+  legalName: string;
+  contactEmail: string;
+  citySlug: string;
+  approvalStatus: ApprovalStatus;
+  rating: number;
+  tenureLabel: string;
+  createdBy: string | null;
+  createdAt: string;
 }
 
 export interface SalesTimelineEntry {
@@ -77,6 +137,7 @@ export interface TicketTier {
   remainingQuota: number;
   maxPerOrder: number;
   salesPhase: SalesPhaseStatus;
+  isActive?: boolean;
 }
 
 export interface Offer {
@@ -116,6 +177,9 @@ export interface PulseEvent {
   citySlug: string;
   venueSlug: string;
   venueName: string;
+  organizationId?: string | null;
+  lifecycleStatus?: EventLifecycleStatus;
+  moderationNotes?: string | null;
   startsAt: string;
   endsAt: string;
   dateLabel: string;
@@ -249,11 +313,31 @@ export interface BookingItem {
   tierName: string;
   quantity: number;
   unitPriceInr: number;
+  seatLabels?: string[];
+}
+
+export interface TicketPass {
+  id: string;
+  bookingId: string;
+  eventId: string;
+  eventTitle?: string;
+  tierId: string;
+  tierName: string;
+  holderName: string;
+  holderEmail: string;
+  ticketCode: string;
+  qrToken: string;
+  seatLabel: string | null;
+  status: TicketStatus;
+  checkedInAt: string | null;
+  checkedInBy: string | null;
 }
 
 export interface BookingRecord {
   id: string;
   referenceCode: string;
+  userId?: string | null;
+  organizationId?: string | null;
   attendeeEmail: string;
   attendeeName: string;
   eventId: string;
@@ -267,10 +351,170 @@ export interface BookingRecord {
   convenienceFeeInr: number;
   gstInr: number;
   totalInr: number;
-  status: "CONFIRMED_DEMO" | "CANCELLED";
+  status: BookingStatus;
   paymentMode: "DEMO_NO_CHARGE";
+  paymentStatus?: PaymentState;
+  paymentRef?: string | null;
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
   createdAt: string;
   items: BookingItem[];
+  tickets?: TicketPass[];
+}
+
+export interface InventoryHold {
+  id: string;
+  holdToken: string;
+  userId: string | null;
+  eventId: string;
+  tierId: string;
+  quantity: number;
+  seatLabels: string[];
+  status: "ACTIVE" | "CONVERTED" | "RELEASED" | "EXPIRED";
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface UserAccount {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  preferredCitySlug: string;
+  favoriteCategories: string[];
+  status: "ACTIVE" | "SUSPENDED";
+  createdAt: string;
+}
+
+export interface AuthSessionView {
+  user: UserAccount | null;
+  assignments: RoleAssignmentRecord[];
+  roles: AppRole[];
+}
+
+export interface StaffInvitation {
+  id: string;
+  email: string;
+  role: AppRole;
+  organizationId: string | null;
+  venueSlug: string | null;
+  eventId: string | null;
+  status: "PENDING" | "ACCEPTED" | "REVOKED";
+  invitedBy: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface TicketScanLog {
+  id: string;
+  ticketId: string | null;
+  ticketCode: string;
+  eventId: string;
+  scannedBy: string;
+  deviceId: string;
+  scanMode: "ONLINE" | "OFFLINE_SYNC";
+  clientScanId: string;
+  result: ScanResultCode;
+  message: string;
+  scannedAt: string;
+  syncedAt: string | null;
+}
+
+export interface RefundRequest {
+  id: string;
+  bookingId: string;
+  userId: string | null;
+  organizationId: string | null;
+  amountInr: number;
+  reason: string;
+  status: RefundStatus;
+  reviewedBy: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LedgerEntry {
+  id: string;
+  organizationId: string | null;
+  bookingId: string | null;
+  refundId: string | null;
+  settlementId: string | null;
+  entryType: "TICKET_SALE" | "PLATFORM_FEE" | "GST" | "REFUND_DEBIT" | "SETTLEMENT_PAYOUT";
+  amountInr: number;
+  currency: "INR";
+  mode: "DEMO_LEDGER";
+  note: string;
+  createdAt: string;
+}
+
+export interface SettlementBatch {
+  id: string;
+  organizationId: string;
+  periodLabel: string;
+  grossInr: number;
+  feesInr: number;
+  refundsInr: number;
+  netPayoutInr: number;
+  status: "PENDING" | "APPROVED" | "SETTLED_DEMO";
+  approvedBy: string | null;
+  createdAt: string;
+  settledAt: string | null;
+}
+
+export interface SupportCase {
+  id: string;
+  userId: string | null;
+  bookingId: string | null;
+  eventId: string | null;
+  subject: string;
+  category: "BOOKING" | "REFUND" | "ACCESS" | "DISPUTE" | "TRUST_SAFETY";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  status: SupportCaseStatus;
+  assignedTo: string | null;
+  notes: { author: string; text: string; createdAt: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actorUserId: string | null;
+  actorEmail: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  beforeJson: unknown;
+  afterJson: unknown;
+  createdAt: string;
+}
+
+export interface PlatformNotification {
+  id: string;
+  userId: string | null;
+  audience: "USER" | "ORGANISER" | "STAFF" | "PLATFORM";
+  title: string;
+  body: string;
+  kind: "BOOKING" | "REMINDER" | "SYSTEM" | "OPERATIONS";
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface FeatureFlag {
+  key: string;
+  enabled: boolean;
+  description: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export interface SavedItem {
+  id: string;
+  userId: string;
+  itemType: "event" | "venue" | "movie" | "restaurant" | "activity";
+  itemSlug: string;
+  createdAt: string;
 }
 
 export interface DemoUserProfile {

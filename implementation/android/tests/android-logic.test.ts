@@ -10,9 +10,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 test("Android Expo app configuration defines independent package id and EAS APK/AAB profiles", () => {
   const appJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../app.json"), "utf8"));
   const easJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../eas.json"), "utf8"));
+  const pkgJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
 
   assert.equal(appJson.expo.android.package, "com.jakuraa.nightlifez");
-  assert.equal(appJson.expo.android.edgeToEdgeEnabled, true);
+  assert.equal(appJson.expo.scheme, "nightlifez");
+  assert.equal(appJson.expo.android.edgeToEdgeEnabled, undefined);
+  assert.ok(pkgJson.dependencies["expo-constants"]);
+  assert.ok(pkgJson.dependencies["expo-linking"]);
+  assert.ok(pkgJson.dependencies["expo-camera"]);
   assert.equal(easJson.build.preview.android.buildType, "apk");
   assert.equal(easJson.build.production.android.buildType, "app-bundle");
 });

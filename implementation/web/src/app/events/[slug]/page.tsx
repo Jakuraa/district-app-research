@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatInr, getMinTierPrice } from "@nightlifez/shared";
 import { AppHeader } from "@/components/AppHeader";
+import { SaveItemButton } from "@/components/SaveItemButton";
 import { getEventDetail, listCitiesAndEvents } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,7 @@ export default async function EventDetailPage({
                 >
                   View Venue Guide →
                 </Link>
+                <SaveItemButton itemType="event" itemSlug={event.slug} />
               </div>
             </div>
           </div>

@@ -1,7 +1,12 @@
 import type {
+  BookingStatus,
+  EventLifecycleStatus,
   Offer,
   PriceBreakdown,
+  RefundStatus,
+  ScanResultCode,
   SelectedTierInput,
+  TicketPass,
   TicketTier,
   TierAvailability
 } from "./types.ts";
@@ -142,4 +147,84 @@ export function calculatePriceBreakdown(params: {
 
 export function formatInr(amount: number): string {
   return `₹${amount.toLocaleString("en-IN")}`;
+}
+
+export const BOOKING_TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
+  CONFIRMED_DEMO: ["CANCELLED", "REFUND_PENDING"],
+  REFUND_PENDING: ["REFUNDED", "CONFIRMED_DEMO", "CANCELLED"],
+  CANCELLED: ["REFUND_PENDING", "REFUNDED"],
+  REFUNDED: []
+};
+
+export const REFUND_TRANSITIONS: Record<RefundStatus, readonly RefundStatus[]> = {
+  REQUESTED: ["UNDER_REVIEW", "APPROVED", "REJECTED"],
+  UNDER_REVIEW: ["APPROVED", "REJECTED"],
+  APPROVED: ["PROCESSED"],
+  REJECTED: [],
+  PROCESSED: []
+};
+
+export const EVENT_STATUS_TRANSITIONS: Record<EventLifecycleStatus, readonly EventLifecycleStatus[]> = {
+  DRAFT: ["PENDING_APPROVAL", "PUBLISHED", "CANCELLED"],
+  PENDING_APPROVAL: ["PUBLISHED", "DRAFT", "CANCELLED"],
+  PUBLISHED: ["PAUSED", "CANCELLED"],
+  PAUSED: ["PUBLISHED", "CANCELLED"],
+  CANCELLED: []
+};
+
+export function canTransitionBookingStatus(from: BookingStatus, to: BookingStatus): boolean {
+  if (from === to) return true;
+  return BOOKING_TRANSITIONS[from].includes(to);
+}
+
+export function canTransitionRefundStatus(from: RefundStatus, to: RefundStatus): boolean {
+  if (from === to) return true;
+  return REFUND_TRANSITIONS[from].includes(to);
+}
+
+export function canTransitionEventStatus(
+  from: EventLifecycleStatus,
+  to: EventLifecycleStatus
+): boolean {
+  if (from === to) return true;
+  return EVENT_STATUS_TRANSITIONS[from].includes(to);
+}
+
+export function evaluateTicketScanEligibility(params: {
+  ticket: Pick<TicketPass, "eventId" | "status" | "checkedInAt"> | null;
+  expectedEventId: string;
+  eventEndsAt?: string | null;
+  now?: Date;
+}): { result: ScanResultCode; valid: boolean; message: string } {
+  const { ticket, expectedEventId, eventEndsAt, now = new Date() } = params;
+  if (!ticket) {
+    return { result: "INVALID", valid: false, message: "Ticket not found or invalid QR signature." };
+  }
+  if (ticket.eventId !== expectedEventId) {
+    return {
+      result: "WRONG_EVENT",
+      valid: false,
+      message: "Ticket belongs to a different event."
+    };
+  }
+  if (ticket.status === "USED") {
+    return {
+      result: "ALREADY_USED",
+      valid: false,
+      message: `Ticket already checked in${ticket.checkedInAt ? ` at ${ticket.checkedInAt}` : ""}.`
+    };
+  }
+  if (ticket.status === "CANCELLED") {
+    return { result: "CANCELLED", valid: false, message: "Ticket booking has been cancelled." };
+  }
+  if (ticket.status === "REVOKED") {
+    return { result: "REVOKED", valid: false, message: "Ticket was revoked by operations." };
+  }
+  if (ticket.status === "EXPIRED") {
+    return { result: "EXPIRED", valid: false, message: "Ticket has expired." };
+  }
+  if (eventEndsAt && new Date(eventEndsAt).getTime() + 6 * 60 * 60 * 1000 < now.getTime()) {
+    return { result: "EXPIRED", valid: false, message: "Event window has ended; pass expired." };
+  }
+  return { result: "VALID", valid: true, message: "Valid pass — entry approved." };
 }

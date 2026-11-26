@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   calculatePriceBreakdown,
   formatInr,
   getTierAvailability,
   type BookingRecord,
+  type InventoryHold,
   type PaymentState,
   type PulseEvent,
   type Venue
@@ -25,6 +26,7 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
   const [targetQty, setTargetQty] = useState<number | null>(null);
   const [qtyGateDismissed, setQtyGateDismissed] = useState(false);
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
+  const [selectedSeatsByTier, setSelectedSeatsByTier] = useState<Record<string, string[]>>({});
   const [focusedTierId, setFocusedTierId] = useState<string | null>(
     event.tiers.find((t) => t.remainingQuota > 0)?.id ?? null
   );
@@ -33,10 +35,39 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [attendeeName, setAttendeeName] = useState("");
   const [attendeeEmail, setAttendeeEmail] = useState("");
+  const [activeHold, setActiveHold] = useState<InventoryHold | null>(null);
+  const [holdSecondsLeft, setHoldSecondsLeft] = useState<number>(0);
+  const [holding, setHolding] = useState(false);
+  const [simulateOutcome, setSimulateOutcome] = useState<"CONFIRMED" | "FAILED">("CONFIRMED");
+  const [idempotencyKey] = useState<string>(() => `idem_${Math.random().toString(36).slice(2, 14)}`);
   const [paymentState, setPaymentState] = useState<PaymentState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<BookingRecord | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.user) {
+          setAttendeeName((prev) => prev || data.user.fullName || "");
+          setAttendeeEmail((prev) => prev || data.user.email || "");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!activeHold) return;
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((new Date(activeHold.expiresAt).getTime() - Date.now()) / 1000));
+      setHoldSecondsLeft(diff);
+      if (diff === 0) setActiveHold(null);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [activeHold]);
 
   const sortedTiers = useMemo(() => {
     const copy = event.tiers.slice();
@@ -49,8 +80,12 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
     () =>
       Object.entries(selectedQuantities)
         .filter(([, q]) => q > 0)
-        .map(([tierId, quantity]) => ({ tierId, quantity })),
-    [selectedQuantities]
+        .map(([tierId, quantity]) => ({
+          tierId,
+          quantity,
+          seatLabels: selectedSeatsByTier[tierId] ?? []
+        })),
+    [selectedQuantities, selectedSeatsByTier]
   );
 
   const breakdown = useMemo(
@@ -97,6 +132,51 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
     }
   }
 
+  function handleToggleSeat(tierId: string, seatLabel: string) {
+    const tier = event.tiers.find((t) => t.id === tierId);
+    if (!tier || tier.remainingQuota <= 0) return;
+    setSelectedSeatsByTier((prev) => {
+      const currentSeats = prev[tierId] ?? [];
+      const exists = currentSeats.includes(seatLabel);
+      const nextSeats = exists
+        ? currentSeats.filter((s) => s !== seatLabel)
+        : currentSeats.length >= Math.min(tier.maxPerOrder, 10)
+        ? currentSeats
+        : [...currentSeats, seatLabel];
+      setSelectedQuantities((qPrev) => ({
+        ...qPrev,
+        [tierId]: Math.max(nextSeats.length, exists ? nextSeats.length : 1)
+      }));
+      return { ...prev, [tierId]: nextSeats };
+    });
+  }
+
+  async function lockInventoryHold() {
+    if (selections.length === 0) return;
+    const primary = selections[0];
+    setHolding(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/holds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventSlug: event.slug,
+          tierId: primary.tierId,
+          quantity: primary.quantity,
+          seatLabels: primary.seatLabels
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Could not lock inventory hold");
+      setActiveHold(json.hold);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Could not hold tickets");
+    } finally {
+      setHolding(false);
+    }
+  }
+
   async function submitDemoReservation(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
@@ -116,6 +196,9 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
           attendeeEmail,
           offerCode: breakdown.appliedOfferCode,
           sessionId: selectedSessionId,
+          holdId: activeHold?.id ?? null,
+          idempotencyKey: simulateOutcome === "CONFIRMED" ? idempotencyKey : undefined,
+          simulatePaymentOutcome: simulateOutcome,
           items: selections
         })
       });
@@ -152,6 +235,7 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
             <div key={item.tierId} className="flex justify-between">
               <span>
                 {item.quantity} × {item.tierName}
+                {item.seatLabels && item.seatLabels.length > 0 ? ` (${item.seatLabels.join(", ")})` : ""}
               </span>
               <span className="font-bold">{formatInr(item.quantity * item.unitPriceInr)}</span>
             </div>
@@ -171,6 +255,28 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
             <span>{formatInr(confirmedBooking.totalInr)}</span>
           </div>
         </div>
+
+        {confirmedBooking.tickets && confirmedBooking.tickets.length > 0 ? (
+          <div className="mt-4 rounded-2xl border border-[#e4e6f0] p-4">
+            <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#5b3df5]">
+              Issued Digital QR Passes ({confirmedBooking.tickets.length})
+            </h3>
+            <div className="mt-2 space-y-1.5 text-xs">
+              {confirmedBooking.tickets.map((t) => (
+                <div key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f6f7fb] px-3 py-2">
+                  <span className="font-mono font-bold text-[#111319]">{t.ticketCode}</span>
+                  <span className="text-[#5e6473]">
+                    {t.tierName}
+                    {t.seatLabel ? ` · Seat ${t.seatLabel}` : ""}
+                  </span>
+                  <span className="rounded-full bg-[#dcfce7] px-2 py-0.5 text-[10px] font-bold text-[#16a34a]">
+                    {t.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
@@ -192,7 +298,6 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
 
   return (
     <div className="space-y-6">
-      {/* Session Selector if multiple dates/sessions exist */}
       {event.sessions && event.sessions.length > 0 ? (
         <section className="rounded-2xl border border-[#e4e6f0] bg-white p-4 sm:p-5">
           <h2 className="text-sm font-extrabold text-[#111319]">1. Choose Show / Session</h2>
@@ -218,7 +323,6 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
         </section>
       ) : null}
 
-      {/* District-style 3-column Quantity Bottom Sheet / Gate */}
       {!qtyGateDismissed ? (
         <div
           role="region"
@@ -272,7 +376,9 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
               sections={venue.sections}
               tiers={event.tiers}
               selectedTierId={focusedTierId}
+              selectedSeats={focusedTierId ? selectedSeatsByTier[focusedTierId] ?? [] : []}
               onSelectTier={handleSelectFromMap}
+              onToggleSeat={handleToggleSeat}
             />
           ) : null}
 
@@ -382,6 +488,29 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
         </div>
 
         <aside className="space-y-4 lg:col-span-5">
+          {activeHold ? (
+            <div className="rounded-2xl border border-[#16a34a] bg-[#dcfce7] p-4 text-xs text-[#111319]">
+              <div className="flex items-center justify-between font-extrabold text-[#16a34a]">
+                <span>INVENTORY HOLD ACTIVE</span>
+                <span>
+                  {Math.floor(holdSecondsLeft / 60)}:{String(holdSecondsLeft % 60).padStart(2, "0")}
+                </span>
+              </div>
+              <p className="mt-1 text-[#374151]">
+                {activeHold.quantity} ticket(s) locked server-side ({activeHold.id}). Complete checkout before timer expires.
+              </p>
+            </div>
+          ) : selections.length > 0 ? (
+            <button
+              type="button"
+              disabled={holding}
+              onClick={() => void lockInventoryHold()}
+              className="w-full rounded-2xl border border-[#5b3df5] bg-[#efeafe] px-4 py-2.5 text-xs font-extrabold text-[#5b3df5] hover:bg-[#e4dbff]"
+            >
+              {holding ? "Locking 10-min Hold..." : "Lock Tickets with 10-Minute Inventory Hold"}
+            </button>
+          ) : null}
+
           <div className="rounded-2xl border border-[#e4e6f0] bg-white p-5">
             <h2 className="text-base font-extrabold text-[#111319]">Offers & Promo Codes</h2>
             <div className="mt-3 flex gap-2">
@@ -500,6 +629,17 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
                   placeholder="asha@example.com"
                   className="mt-1 w-full rounded-xl border border-[#e4e6f0] px-3 py-2 text-sm text-[#111319]"
                 />
+              </label>
+              <label className="block text-xs font-bold text-[#5e6473]">
+                Sandbox Payment Adapter Mode
+                <select
+                  value={simulateOutcome}
+                  onChange={(e) => setSimulateOutcome(e.target.value as "CONFIRMED" | "FAILED")}
+                  className="mt-1 w-full rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-xs font-semibold text-[#111319]"
+                >
+                  <option value="CONFIRMED">Approve Sandbox Payment (No Real Charge)</option>
+                  <option value="FAILED">Simulate Payment Decline (Test Error Handling)</option>
+                </select>
               </label>
             </div>
 

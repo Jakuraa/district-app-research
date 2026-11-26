@@ -72,3 +72,86 @@ test("createBookingSchema validates payload boundaries", () => {
   });
   assert.equal(invalidQty.success, false);
 });
+
+import {
+  canTransitionBookingStatus,
+  canTransitionEventStatus,
+  canTransitionRefundStatus,
+  evaluateTicketScanEligibility,
+  hasPermission
+} from "../src/index.ts";
+
+test("RBAC hasPermission enforces organization and event tenant isolation", () => {
+  const orgOwner = [
+    {
+      role: "organiser_owner" as const,
+      organizationId: "org-a",
+      venueSlug: null,
+      eventId: null
+    }
+  ];
+  assert.equal(hasPermission(orgOwner, "org:events:write", { organizationId: "org-a" }), true);
+  assert.equal(hasPermission(orgOwner, "org:events:write", { organizationId: "org-b" }), false);
+  assert.equal(hasPermission(orgOwner, "platform:kpi:read"), false);
+
+  const gateStaff = [
+    {
+      role: "checkin_staff" as const,
+      organizationId: "org-a",
+      venueSlug: "venue-1",
+      eventId: "evt-1"
+    }
+  ];
+  assert.equal(hasPermission(gateStaff, "staff:tickets:scan", { eventId: "evt-1" }), true);
+  assert.equal(hasPermission(gateStaff, "staff:tickets:scan", { eventId: "evt-2" }), false);
+  assert.equal(hasPermission(gateStaff, "staff:boxoffice:sell", { eventId: "evt-1" }), false);
+});
+
+test("booking, refund, and event lifecycle state transitions reject invalid jumps", () => {
+  assert.equal(canTransitionBookingStatus("CONFIRMED_DEMO", "REFUND_PENDING"), true);
+  assert.equal(canTransitionBookingStatus("REFUNDED", "CONFIRMED_DEMO"), false);
+
+  assert.equal(canTransitionRefundStatus("REQUESTED", "APPROVED"), true);
+  assert.equal(canTransitionRefundStatus("PROCESSED", "REQUESTED"), false);
+
+  assert.equal(canTransitionEventStatus("DRAFT", "PUBLISHED"), true);
+  assert.equal(canTransitionEventStatus("CANCELLED", "PUBLISHED"), false);
+});
+
+test("evaluateTicketScanEligibility flags VALID, ALREADY_USED, CANCELLED, REVOKED, EXPIRED, and WRONG_EVENT", () => {
+  assert.equal(
+    evaluateTicketScanEligibility({
+      ticket: { eventId: "evt-1", status: "VALID", checkedInAt: null },
+      expectedEventId: "evt-1"
+    }).result,
+    "VALID"
+  );
+  assert.equal(
+    evaluateTicketScanEligibility({
+      ticket: { eventId: "evt-1", status: "USED", checkedInAt: "2026-11-26T10:00:00Z" },
+      expectedEventId: "evt-1"
+    }).result,
+    "ALREADY_USED"
+  );
+  assert.equal(
+    evaluateTicketScanEligibility({
+      ticket: { eventId: "evt-1", status: "CANCELLED", checkedInAt: null },
+      expectedEventId: "evt-1"
+    }).result,
+    "CANCELLED"
+  );
+  assert.equal(
+    evaluateTicketScanEligibility({
+      ticket: { eventId: "evt-1", status: "REVOKED", checkedInAt: null },
+      expectedEventId: "evt-1"
+    }).result,
+    "REVOKED"
+  );
+  assert.equal(
+    evaluateTicketScanEligibility({
+      ticket: { eventId: "evt-1", status: "VALID", checkedInAt: null },
+      expectedEventId: "evt-2"
+    }).result,
+    "WRONG_EVENT"
+  );
+});

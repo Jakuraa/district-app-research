@@ -19,11 +19,39 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#5B3DF5"
       },
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "nightlifez"
+            },
+            {
+              "scheme": "https",
+              "host": "nightlifez.com",
+              "pathPrefix": "/events"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow NIGHTLIFEZ Staff Scanner to use the camera to verify QR event tickets."
+        }
+      ],
       [
         "expo-build-properties",
         {

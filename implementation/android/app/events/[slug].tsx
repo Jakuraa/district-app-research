@@ -2,12 +2,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { formatInr, getMinTierPrice, NIGHTLIFEZ_TOKENS, SEED_EVENTS } from "@nightlifez/shared";
+import { useNativeSession } from "../../src/lib/session";
 
 export default function EventDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
+  const { savedEventSlugs, toggleSavedEvent } = useNativeSession();
   const event = SEED_EVENTS.find((e) => e.slug === slug) ?? SEED_EVENTS[0];
   const minPrice = getMinTierPrice(event.tiers);
+  const isSaved = savedEventSlugs.includes(event.slug);
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.container}>
@@ -17,6 +20,20 @@ export default function EventDetailScreen() {
           <Text style={styles.title}>{event.title}</Text>
           <Text style={styles.meta}>{event.dateLabel}</Text>
           <Text style={styles.meta}>{event.venueName}</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+            <Pressable
+              onPress={() => router.push(`/venues/${event.venueSlug}`)}
+              style={{ borderWidth: 1, borderColor: "rgba(255,255,255,0.4)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
+            >
+              <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>Venue Guide →</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void toggleSavedEvent(event.slug)}
+              style={{ backgroundColor: isSaved ? "#111319" : "rgba(255,255,255,0.18)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
+            >
+              <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>{isSaved ? "Saved ✓" : "Save Event"}</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.section}>

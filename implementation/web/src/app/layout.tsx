@@ -46,6 +46,11 @@ export default function RootLayout({
               <Link href="/play" className="hover:text-[#111319]">Play</Link>
               <Link href="/bookings" className="hover:text-[#111319]">Ticket Wallet</Link>
               <Link href="/account" className="hover:text-[#111319]">Account</Link>
+              <span className="text-[#cbd0e0]" aria-hidden="true">|</span>
+              <Link href="/organiser" className="text-[#5b3df5] hover:underline">Organiser</Link>
+              <Link href="/venue-portal" className="text-[#5b3df5] hover:underline">Venues</Link>
+              <Link href="/staff" className="text-[#5b3df5] hover:underline">Staff Scanner</Link>
+              <Link href="/admin" className="text-[#5b3df5] hover:underline">Admin</Link>
             </div>
           </div>
         </footer>

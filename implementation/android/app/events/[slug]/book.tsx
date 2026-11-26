@@ -1,26 +1,36 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   calculatePriceBreakdown,
   formatInr,
   getTierAvailability,
   NIGHTLIFEZ_TOKENS,
   SEED_EVENTS,
-  SEED_VENUES
+  SEED_VENUES,
+  type BookingRecord
 } from "@nightlifez/shared";
+import { useNativeSession } from "../../../src/lib/session";
 
 export default function AndroidBookScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
+  const router = useRouter();
+  const { client, session, recordBooking } = useNativeSession();
   const event = SEED_EVENTS.find((e) => e.slug === slug) ?? SEED_EVENTS[0];
   const venue = SEED_VENUES.find((v) => v.slug === event.venueSlug) ?? null;
 
   const [targetQty, setTargetQty] = useState<number | null>(null);
   const [qtyGateDone, setQtyGateDone] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [promoCode, setPromoCode] = useState<string>("");
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
-  const [reservedRef, setReservedRef] = useState<string | null>(null);
+  const [attendeeName, setAttendeeName] = useState(session.user?.fullName ?? "Asha Rao");
+  const [attendeeEmail, setAttendeeEmail] = useState(session.user?.email ?? "asha@nightlifez.test");
+  const [holdStatus, setHoldStatus] = useState<string | null>(null);
+  const [holdId, setHoldId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [reservedBooking, setReservedBooking] = useState<BookingRecord | null>(null);
 
   const selections = useMemo(
     () =>
@@ -55,6 +65,92 @@ export default function AndroidBookScreen() {
       const next = Math.max(0, Math.min(maxAllowed, (prev[tierId] ?? 0) + delta));
       return { ...prev, [tierId]: next };
     });
+  }
+
+  async function lockHold() {
+    if (selections.length === 0) return;
+    try {
+      const res = await client.createHold({
+        eventSlug: event.slug,
+        tierId: selections[0].tierId,
+        quantity: selections[0].quantity,
+        seatLabels: selectedSeats
+      });
+      setHoldId(res.hold.id);
+      setHoldStatus(`10-min Hold Locked (${res.hold.id})`);
+    } catch {
+      setHoldStatus("Offline local hold active (10 min)");
+    }
+  }
+
+  async function submitBooking() {
+    if (breakdown.totalQuantity === 0) return;
+    setSubmitting(true);
+    try {
+      const res = await client.createBooking({
+        eventSlug: event.slug,
+        attendeeName: attendeeName.trim() || "NIGHTLIFEZ Guest",
+        attendeeEmail: attendeeEmail.trim() || "guest@nightlifez.test",
+        offerCode: breakdown.appliedOfferCode,
+        holdId,
+        items: selections.map((s) => ({ ...s, seatLabels: selectedSeats }))
+      });
+      await recordBooking(res.booking);
+      setReservedBooking(res.booking);
+    } catch {
+      const refCode = `NLZ-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
+      const offlineBooking: BookingRecord = {
+        id: `bkg_local_${Date.now()}`,
+        referenceCode: refCode,
+        attendeeEmail: attendeeEmail.trim() || "guest@nightlifez.test",
+        attendeeName: attendeeName.trim() || "NIGHTLIFEZ Guest",
+        eventId: event.id,
+        eventSlug: event.slug,
+        eventTitle: event.title,
+        venueName: event.venueName,
+        dateLabel: event.dateLabel,
+        offerCode: breakdown.appliedOfferCode,
+        subtotalInr: breakdown.subtotalInr,
+        discountInr: breakdown.discountInr,
+        convenienceFeeInr: breakdown.convenienceFeeInr,
+        gstInr: breakdown.gstInr,
+        totalInr: breakdown.totalInr,
+        status: "CONFIRMED_DEMO",
+        paymentMode: "DEMO_NO_CHARGE",
+        createdAt: new Date().toISOString(),
+        items: selections.map((s) => {
+          const t = event.tiers.find((x) => x.id === s.tierId)!;
+          return {
+            tierId: s.tierId,
+            tierName: t.name,
+            quantity: s.quantity,
+            unitPriceInr: t.priceInr,
+            seatLabels: selectedSeats
+          };
+        }),
+        tickets: [
+          {
+            id: `tkt_${Date.now()}`,
+            bookingId: `bkg_local_${Date.now()}`,
+            eventId: event.id,
+            tierId: selections[0].tierId,
+            tierName: event.tiers.find((x) => x.id === selections[0].tierId)?.name ?? "Pass",
+            holderName: attendeeName.trim() || "NIGHTLIFEZ Guest",
+            holderEmail: attendeeEmail.trim() || "guest@nightlifez.test",
+            ticketCode: `NLZ-TKT-${refCode.slice(-6)}`,
+            qrToken: `NLZ-OFFLINE-${refCode}`,
+            seatLabel: selectedSeats[0] ?? null,
+            status: "VALID",
+            checkedInAt: null,
+            checkedInBy: null
+          }
+        ]
+      };
+      await recordBooking(offlineBooking);
+      setReservedBooking(offlineBooking);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -96,6 +192,36 @@ export default function AndroidBookScreen() {
               <View key={sec.id} style={[styles.mapZone, { borderColor: sec.color }]}>
                 <Text style={styles.mapZoneName}>{sec.name}</Text>
                 <Text style={styles.mapZoneSub}>{sec.zoneLabel}</Text>
+                {sec.seatRows?.map((row) => (
+                  <View key={row.rowLabel} style={styles.seatRow}>
+                    <Text style={styles.seatRowLabel}>{row.rowLabel}:</Text>
+                    {Array.from({ length: row.seatCount }, (_, idx) => {
+                      const seat = `${row.rowLabel}-${idx + 1}`;
+                      const blocked = (row.unavailableSeats ?? []).includes(seat);
+                      const picked = selectedSeats.includes(seat);
+                      return (
+                        <Pressable
+                          key={seat}
+                          disabled={blocked}
+                          onPress={() =>
+                            setSelectedSeats((prev) =>
+                              prev.includes(seat) ? prev.filter((x) => x !== seat) : [...prev, seat]
+                            )
+                          }
+                          style={[
+                            styles.seatPill,
+                            blocked && { opacity: 0.3 },
+                            picked && { backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary }
+                          ]}
+                        >
+                          <Text style={[styles.seatText, picked && { color: "#FFFFFF" }]}>
+                            {idx + 1}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
               </View>
             ))}
           </View>
@@ -140,6 +266,14 @@ export default function AndroidBookScreen() {
         </Pressable>
       </View>
 
+      {breakdown.totalQuantity > 0 ? (
+        <Pressable onPress={() => void lockHold()} style={styles.holdBtn}>
+          <Text style={styles.holdBtnText}>
+            {holdStatus ?? "Lock 10-Min Inventory Hold"}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.summaryCard}>
         <Text style={styles.summaryRow}>Subtotal: {formatInr(breakdown.subtotalInr)}</Text>
         <Text style={styles.summaryRow}>Discount: -{formatInr(breakdown.discountInr)}</Text>
@@ -147,17 +281,39 @@ export default function AndroidBookScreen() {
           Fees + GST: {formatInr(breakdown.convenienceFeeInr + breakdown.gstInr)}
         </Text>
         <Text style={styles.totalRow}>Total Demo: {formatInr(breakdown.totalInr)}</Text>
+        <TextInput
+          value={attendeeName}
+          onChangeText={setAttendeeName}
+          placeholder="Attendee Name"
+          style={[styles.input, { marginTop: 8 }]}
+        />
+        <TextInput
+          value={attendeeEmail}
+          onChangeText={setAttendeeEmail}
+          autoCapitalize="none"
+          placeholder="Attendee Email"
+          style={[styles.input, { marginTop: 6 }]}
+        />
       </View>
 
-      {reservedRef ? (
-        <Text style={styles.confirmed}>Demo Pass Reserved: {reservedRef} (No Charge)</Text>
+      {reservedBooking ? (
+        <View style={styles.confirmedBox}>
+          <Text style={styles.confirmed}>
+            Demo Pass Reserved: {reservedBooking.referenceCode} (No Charge)
+          </Text>
+          <Pressable onPress={() => router.push("/bookings")} style={styles.confirmBtn}>
+            <Text style={styles.confirmText}>Open Digital Ticket Wallet</Text>
+          </Pressable>
+        </View>
       ) : (
         <Pressable
-          disabled={breakdown.totalQuantity === 0}
-          onPress={() => setReservedRef("NLZ-ANDROID-DEMO")}
-          style={[styles.confirmBtn, breakdown.totalQuantity === 0 && { opacity: 0.45 }]}
+          disabled={submitting || breakdown.totalQuantity === 0}
+          onPress={() => void submitBooking()}
+          style={[styles.confirmBtn, (submitting || breakdown.totalQuantity === 0) && { opacity: 0.45 }]}
         >
-          <Text style={styles.confirmText}>Reserve Demo Pass</Text>
+          <Text style={styles.confirmText}>
+            {submitting ? "Reserving..." : "Reserve Demo Pass (No Charge)"}
+          </Text>
         </Pressable>
       )}
     </ScrollView>
@@ -166,7 +322,7 @@ export default function AndroidBookScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
-  content: { padding: 16, gap: 12, paddingBottom: 32 },
+  content: { padding: 16, gap: 12, paddingBottom: 36 },
   heading: { fontSize: 18, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   gateCard: {
     backgroundColor: "#FFFFFF",
@@ -214,10 +370,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 10,
     padding: 8,
-    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted,
+    gap: 4
   },
   mapZoneName: { fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   mapZoneSub: { fontSize: 10, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  seatRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 4 },
+  seatRowLabel: { fontSize: 10, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  seatPill: {
+    borderWidth: 1,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.borderStrong,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3
+  },
+  seatText: { fontSize: 10, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   tierCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -258,6 +426,15 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   applyText: { color: "#FFFFFF", fontWeight: "700" },
+  holdBtn: {
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft,
+    borderWidth: 1,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center"
+  },
+  holdBtnText: { color: NIGHTLIFEZ_TOKENS.colors.primary, fontSize: 12, fontWeight: "800" },
   summaryCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
@@ -275,11 +452,12 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   confirmText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  confirmedBox: { gap: 10 },
   confirmed: {
     textAlign: "center",
     fontSize: 14,
     fontWeight: "800",
     color: NIGHTLIFEZ_TOKENS.colors.available,
-    paddingVertical: 12
+    paddingVertical: 8
   }
 });
