@@ -38,7 +38,7 @@ export default function AndroidBookingsWalletScreen() {
   useEffect(() => {
     if (!session.user) return;
     client
-      .getBookings(session.user.email)
+      .getBookings(session.user.email ?? undefined)
       .then((res) => setRemoteBookings(res.bookings ?? []))
       .catch(() => {});
   }, [client, session.user]);

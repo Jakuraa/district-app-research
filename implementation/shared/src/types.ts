@@ -377,19 +377,50 @@ export interface InventoryHold {
 
 export interface UserAccount {
   id: string;
-  email: string;
+  email: string | null;
   fullName: string;
   phone: string | null;
+  phoneVerifiedAt?: string | null;
   preferredCitySlug: string;
   favoriteCategories: string[];
   status: "ACTIVE" | "SUSPENDED";
   createdAt: string;
 }
 
+export interface WorkspaceOption {
+  key: string;
+  role: AppRole;
+  label: string;
+  path: "/account" | "/admin" | "/organiser" | "/venue-portal" | "/staff";
+  organizationId: string | null;
+  organizationName?: string | null;
+  venueSlug: string | null;
+  eventId: string | null;
+}
+
 export interface AuthSessionView {
   user: UserAccount | null;
   assignments: RoleAssignmentRecord[];
   roles: AppRole[];
+  workspaces?: WorkspaceOption[];
+  defaultWorkspacePath?: string;
+}
+
+export type OtpPurpose = "LOGIN" | "SIGNUP" | "VERIFY";
+
+export interface OtpRequestResult {
+  challengeId: string;
+  maskedPhone: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  message: string;
+  previewSyntheticOtp?: string;
+}
+
+export interface OtpVerifyResult extends AuthSessionView {
+  token: string;
+  isNewUser: boolean;
+  needsOnboarding: boolean;
 }
 
 export interface StaffInvitation {

@@ -5,7 +5,10 @@ import {
   SEED_NOTIFICATIONS,
   type AuthSessionView,
   type BookingRecord,
-  type PlatformNotification
+  type OtpRequestResult,
+  type OtpVerifyResult,
+  type PlatformNotification,
+  type UserAccount
 } from "@nightlifez/shared";
 
 const TOKEN_KEY = "nlz_native_auth_token_v1";
@@ -24,6 +27,15 @@ interface NativeSessionContextValue {
   localBookings: BookingRecord[];
   savedEventSlugs: string[];
   notifications: PlatformNotification[];
+  requestOtp: (phone: string, countryCode?: string) => Promise<OtpRequestResult>;
+  resendOtp: (challengeId: string) => Promise<OtpRequestResult>;
+  verifyOtp: (challengeId: string, code: string) => Promise<OtpVerifyResult>;
+  updateProfile: (input: {
+    fullName?: string;
+    email?: string | null;
+    preferredCitySlug?: string;
+    favoriteCategories?: string[];
+  }) => Promise<UserAccount>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -81,6 +93,46 @@ export function NativeSessionProvider({ children }: { children: ReactNode }) {
     const clean = url.trim().replace(/\/$/, "") || DEFAULT_API_BASE;
     setApiBaseState(clean);
     await AsyncStorage.setItem(API_BASE_KEY, clean);
+  }
+
+  async function requestOtp(phone: string, countryCode: string = "+91"): Promise<OtpRequestResult> {
+    return client.requestOtp({ phone, countryCode, purpose: "LOGIN" });
+  }
+
+  async function resendOtp(challengeId: string): Promise<OtpRequestResult> {
+    return client.resendOtp(challengeId);
+  }
+
+  async function verifyOtp(challengeId: string, code: string): Promise<OtpVerifyResult> {
+    const res = await client.verifyOtp({ challengeId, code });
+    setAuthToken(res.token);
+    client.setAuthToken(res.token);
+    await AsyncStorage.setItem(TOKEN_KEY, res.token);
+    setSession({
+      user: res.user,
+      assignments: res.assignments,
+      roles: res.roles,
+      workspaces: res.workspaces,
+      defaultWorkspacePath: res.defaultWorkspacePath
+    });
+    try {
+      const notifs = await client.getNotifications();
+      setNotifications(notifs.notifications);
+    } catch {
+      // Keep seed notifications if offline
+    }
+    return res;
+  }
+
+  async function updateProfile(input: {
+    fullName?: string;
+    email?: string | null;
+    preferredCitySlug?: string;
+    favoriteCategories?: string[];
+  }): Promise<UserAccount> {
+    const res = await client.updateProfile(input);
+    setSession((prev) => ({ ...prev, user: res.user }));
+    return res.user;
   }
 
   async function signIn(email: string, password: string) {
@@ -153,6 +205,10 @@ export function NativeSessionProvider({ children }: { children: ReactNode }) {
         localBookings,
         savedEventSlugs,
         notifications,
+        requestOtp,
+        resendOtp,
+        verifyOtp,
+        updateProfile,
         signIn,
         signUp,
         signOut,

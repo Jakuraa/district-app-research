@@ -3,11 +3,14 @@ import type {
   BookingRecord,
   City,
   InventoryHold,
+  OtpRequestResult,
+  OtpVerifyResult,
   PlatformNotification,
   PulseEvent,
   RefundRequest,
   TicketPass,
   TicketScanLog,
+  UserAccount,
   Venue
 } from "./types.ts";
 import type { CreateBookingInput, EventQueryInput } from "./schemas.ts";
@@ -81,6 +84,50 @@ export class NIGHTLIFEZClient {
 
   getSession(): Promise<AuthSessionView> {
     return this.request<AuthSessionView>("/api/auth/me");
+  }
+
+  requestOtp(input: {
+    phone: string;
+    countryCode?: string;
+    purpose?: "LOGIN" | "SIGNUP" | "VERIFY";
+  }): Promise<OtpRequestResult> {
+    return this.request<OtpRequestResult>("/api/auth/otp/request", {
+      method: "POST",
+      body: JSON.stringify({ countryCode: "+91", purpose: "LOGIN", ...input })
+    });
+  }
+
+  resendOtp(challengeId: string): Promise<OtpRequestResult> {
+    return this.request<OtpRequestResult>("/api/auth/otp/resend", {
+      method: "POST",
+      body: JSON.stringify({ challengeId })
+    });
+  }
+
+  verifyOtp(input: {
+    challengeId: string;
+    code: string;
+    fullName?: string;
+    email?: string | null;
+    preferredCitySlug?: string;
+  }): Promise<OtpVerifyResult> {
+    return this.request<OtpVerifyResult>("/api/auth/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  updateProfile(input: {
+    fullName?: string;
+    email?: string | null;
+    phone?: string | null;
+    preferredCitySlug?: string;
+    favoriteCategories?: string[];
+  }): Promise<{ user: UserAccount }> {
+    return this.request<{ user: UserAccount }>("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
   }
 
   signIn(email: string, password: string): Promise<AuthSessionView & { token: string }> {

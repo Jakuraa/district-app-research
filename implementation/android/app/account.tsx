@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { DISCOVERY_CATEGORIES, hasPermission, NIGHTLIFEZ_TOKENS, SEED_CITIES } from "@nightlifez/shared";
+import {
+  COUNTRY_DIAL_CODES,
+  DEFAULT_COUNTRY_CODE,
+  DISCOVERY_CATEGORIES,
+  hasPermission,
+  NIGHTLIFEZ_TOKENS,
+  SEED_CITIES,
+  type OtpRequestResult,
+  type QaIdentitySpec
+} from "@nightlifez/shared";
 import { useNativeSession } from "../src/lib/session";
+
+type AuthStep = "phone" | "otp" | "onboarding";
 
 export default function AndroidAccountScreen() {
   const router = useRouter();
@@ -12,15 +23,23 @@ export default function AndroidAccountScreen() {
     setApiBaseUrl,
     savedEventSlugs,
     notifications,
-    signIn,
-    signUp,
+    requestOtp,
+    resendOtp,
+    verifyOtp,
+    updateProfile,
     signOut
   } = useNativeSession();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [authStep, setAuthStep] = useState<AuthStep>("phone");
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [challenge, setChallenge] = useState<OtpRequestResult | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [fullName, setFullName] = useState(session.user?.fullName ?? "");
+  const [email, setEmail] = useState(session.user?.email ?? "");
   const [citySlug, setCitySlug] = useState(session.user?.preferredCitySlug ?? "bengaluru");
   const [interests, setInterests] = useState<string[]>(
     session.user?.favoriteCategories ?? ["concerts", "dining"]
@@ -28,9 +47,34 @@ export default function AndroidAccountScreen() {
   const [serverUrlInput, setServerUrlInput] = useState(apiBaseUrl);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [qaDirectory, setQaDirectory] = useState<QaIdentitySpec[]>([]);
+
+  const otpInputRef = useRef<TextInput>(null);
 
   const canAccessStaff =
     session.user !== null && hasPermission(session.assignments, "staff:events:read");
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/auth/qa-directory`);
+        if (res.ok) {
+          const json = (await res.json()) as { identities?: QaIdentitySpec[] };
+          setQaDirectory(json.identities ?? []);
+        }
+      } catch {
+        // Ignore if offline or production
+      }
+    })();
+  }, [apiBaseUrl]);
 
   function toggleInterest(key: string) {
     setInterests((prev) =>
@@ -38,90 +82,286 @@ export default function AndroidAccountScreen() {
     );
   }
 
-  async function handleAuth() {
+  async function handleRequestOtp(overridePhone?: string, overrideCountry?: string) {
     setErrorMsg(null);
     setStatusMsg(null);
+    setSubmitting(true);
     try {
-      if (mode === "signin") {
-        await signIn(email.trim(), password);
-        setStatusMsg("Signed in successfully.");
-      } else {
-        await signUp(email.trim(), password, fullName.trim());
-        setStatusMsg("Account created and signed in.");
-      }
-      setPassword("");
+      const res = await requestOtp((overridePhone ?? phoneInput).trim(), overrideCountry ?? countryCode);
+      setChallenge(res);
+      setOtpCode("");
+      setResendCountdown(res.resendAfterSeconds ?? 30);
+      setAuthStep("otp");
+      setTimeout(() => otpInputRef.current?.focus(), 100);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Authentication failed");
+      setErrorMsg(err instanceof Error ? err.message : "Could not send OTP");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleResendOtp() {
+    if (!challenge || resendCountdown > 0) return;
+    setErrorMsg(null);
+    setStatusMsg(null);
+    setSubmitting(true);
+    try {
+      const res = await resendOtp(challenge.challengeId);
+      setChallenge(res);
+      setOtpCode("");
+      setResendCountdown(res.resendAfterSeconds ?? 30);
+      setStatusMsg("A new 6-digit OTP has been sent.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Could not resend OTP");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleVerifyOtp() {
+    if (!challenge) return;
+    setErrorMsg(null);
+    setStatusMsg(null);
+    setSubmitting(true);
+    try {
+      const res = await verifyOtp(challenge.challengeId, otpCode.trim());
+      if (res.needsOnboarding) {
+        setFullName("");
+        setEmail("");
+        setAuthStep("onboarding");
+        setStatusMsg("Phone verified! Complete your profile.");
+        return;
+      }
+      setChallenge(null);
+      setOtpCode("");
+      setAuthStep("phone");
+      setStatusMsg(res.isNewUser ? "Welcome to NIGHTLIFEZ!" : "Signed in with verified phone.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "OTP verification failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCompleteOnboarding() {
+    setErrorMsg(null);
+    setStatusMsg(null);
+    setSubmitting(true);
+    try {
+      await updateProfile({
+        fullName: fullName.trim(),
+        email: email.trim() ? email.trim() : null,
+        preferredCitySlug: citySlug
+      });
+      setChallenge(null);
+      setOtpCode("");
+      setAuthStep("phone");
+      setStatusMsg("Profile completed.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Could not save profile");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {!session.user ? (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {authStep === "onboarding" && session.user ? (
         <View style={styles.card}>
-          <Text style={styles.badge}>NIGHTLIFEZ IDENTITY · SANDBOX SESSION</Text>
-          <Text style={styles.title}>{mode === "signin" ? "Sign In" : "Create Account"}</Text>
+          <Text style={styles.badge}>PHONE VERIFIED · {session.user.phone}</Text>
+          <Text style={styles.title}>Complete your profile</Text>
+          <Text style={styles.meta}>Add your name for passes and check-in. Email is optional.</Text>
 
-          <View style={styles.tabRow}>
-            <Pressable
-              onPress={() => setMode("signin")}
-              style={[styles.tabPill, mode === "signin" && styles.tabPillActive]}
-            >
-              <Text style={[styles.tabText, mode === "signin" && { color: "#FFFFFF" }]}>Sign In</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setMode("signup")}
-              style={[styles.tabPill, mode === "signup" && styles.tabPillActive]}
-            >
-              <Text style={[styles.tabText, mode === "signup" && { color: "#FFFFFF" }]}>Sign Up</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.label}>Full Name</Text>
+          <TextInput
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder="Asha Rao"
+            style={styles.input}
+            returnKeyType="next"
+          />
 
-          {mode === "signup" ? (
-            <>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                value={fullName}
-                onChangeText={setFullName}
-                placeholder="Asha Rao"
-                style={styles.input}
-              />
-            </>
-          ) : null}
-
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email (Optional)</Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            placeholder="asha@nightlifez.test"
+            placeholder="asha@example.com"
             style={styles.input}
-          />
-
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Minimum 8 characters"
-            style={styles.input}
+            returnKeyType="done"
           />
 
           {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
           {statusMsg ? <Text style={styles.savedNote}>{statusMsg}</Text> : null}
 
-          <Pressable onPress={() => void handleAuth()} style={styles.saveBtn}>
-            <Text style={styles.saveBtnText}>
-              {mode === "signin" ? "Sign In to NIGHTLIFEZ" : "Create NIGHTLIFEZ Account"}
-            </Text>
+          <Pressable
+            disabled={submitting || fullName.trim().length < 2}
+            onPress={() => void handleCompleteOnboarding()}
+            style={styles.saveBtn}
+          >
+            <Text style={styles.saveBtnText}>Finish &amp; Continue</Text>
           </Pressable>
         </View>
+      ) : !session.user ? (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.badge}>NIGHTLIFEZ UNIFIED LOGIN</Text>
+            <Text style={styles.title}>
+              {authStep === "phone" ? "Log in or sign up" : "Verify your phone"}
+            </Text>
+            <Text style={styles.meta}>
+              {authStep === "phone"
+                ? "Phone-first sign in for attendees, organisers, venue managers, and gate staff."
+                : `Enter the 6-digit code sent to ${challenge?.maskedPhone ?? "your phone"}.`}
+            </Text>
+
+            {authStep === "phone" ? (
+              <>
+                <Text style={styles.label}>Country Code</Text>
+                <View style={styles.chips}>
+                  {COUNTRY_DIAL_CODES.slice(0, 4).map((c) => (
+                    <Pressable
+                      key={c.code}
+                      onPress={() => setCountryCode(c.code)}
+                      style={[styles.chip, countryCode === c.code && styles.chipActive]}
+                    >
+                      <Text style={[styles.chipText, countryCode === c.code && styles.chipTextActive]}>
+                        {c.flag} {c.code}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Mobile Number</Text>
+                <TextInput
+                  value={phoneInput}
+                  onChangeText={setPhoneInput}
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                  autoComplete="tel"
+                  placeholder="98765 00001"
+                  style={styles.input}
+                  returnKeyType="done"
+                  onSubmitEditing={() => void handleRequestOtp()}
+                />
+
+                {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+                <Pressable
+                  disabled={submitting || phoneInput.trim().length < 6}
+                  onPress={() => void handleRequestOtp()}
+                  style={[styles.saveBtn, (submitting || phoneInput.trim().length < 6) && styles.btnDisabled]}
+                >
+                  <Text style={styles.saveBtnText}>{submitting ? "Sending OTP..." : "Continue"}</Text>
+                </Pressable>
+                <Text style={styles.legalNote}>
+                  By continuing, you agree to NIGHTLIFEZ Terms of Service &amp; Privacy Policy.
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.phoneHeaderRow}>
+                  <Text style={styles.meta}>{challenge?.maskedPhone}</Text>
+                  <Pressable
+                    onPress={() => {
+                      setAuthStep("phone");
+                      setChallenge(null);
+                      setOtpCode("");
+                      setErrorMsg(null);
+                      setStatusMsg(null);
+                    }}
+                  >
+                    <Text style={styles.linkText}>Change phone number</Text>
+                  </Pressable>
+                </View>
+
+                {challenge?.previewSyntheticOtp ? (
+                  <View style={styles.previewOtpBox}>
+                    <Text style={styles.previewOtpText}>
+                      Preview QA OTP: {challenge.previewSyntheticOtp}
+                    </Text>
+                    <Pressable onPress={() => setOtpCode(challenge.previewSyntheticOtp ?? "")}>
+                      <Text style={styles.linkText}>Fill</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                <Text style={styles.label}>6-Digit OTP</Text>
+                <TextInput
+                  ref={otpInputRef}
+                  value={otpCode}
+                  onChangeText={(txt) => setOtpCode(txt.replace(/\D/g, "").slice(0, 6))}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="sms-otp"
+                  maxLength={6}
+                  placeholder="••••••"
+                  style={[styles.input, styles.otpInput]}
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (otpCode.length === 6) void handleVerifyOtp();
+                  }}
+                />
+
+                {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+                {statusMsg ? <Text style={styles.savedNote}>{statusMsg}</Text> : null}
+
+                <Pressable
+                  disabled={submitting || otpCode.length !== 6}
+                  onPress={() => void handleVerifyOtp()}
+                  style={[styles.saveBtn, (submitting || otpCode.length !== 6) && styles.btnDisabled]}
+                >
+                  <Text style={styles.saveBtnText}>{submitting ? "Verifying..." : "Verify & Continue"}</Text>
+                </Pressable>
+
+                <View style={styles.phoneHeaderRow}>
+                  <Text style={styles.meta}>Expires in 5 minutes</Text>
+                  <Pressable disabled={resendCountdown > 0 || submitting} onPress={() => void handleResendOtp()}>
+                    <Text style={[styles.linkText, resendCountdown > 0 && { color: NIGHTLIFEZ_TOKENS.colors.inkMuted }]}>
+                      {resendCountdown > 0 ? `Resend in ${resendCountdown}s` : "Resend OTP"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+
+          {qaDirectory.length > 0 ? (
+            <View style={styles.card}>
+              <Text style={styles.badge}>NON-PRODUCTION QA DIRECTORY</Text>
+              <Text style={styles.sectionTitle}>Tap an identity to test</Text>
+              {qaDirectory.map((qa) => (
+                <Pressable
+                  key={qa.id}
+                  onPress={() => {
+                    setCountryCode("+91");
+                    const digits = qa.phone.replace(/^\+91/, "");
+                    setPhoneInput(digits);
+                    void handleRequestOtp(digits, "+91");
+                  }}
+                  style={styles.qaRow}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>{qa.fullName}</Text>
+                    <Text style={styles.meta}>
+                      {qa.phone} · {qa.roles.map((r) => r.role).join(", ")}
+                    </Text>
+                  </View>
+                  <Text style={styles.linkText}>Send OTP →</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </>
       ) : (
         <View style={styles.card}>
           <Text style={styles.badge}>{session.roles.join(" · ").toUpperCase()}</Text>
           <Text style={styles.title}>{session.user.fullName}</Text>
-          <Text style={styles.meta}>{session.user.email}</Text>
+          <Text style={styles.meta}>
+            {session.user.phone ?? "No phone"}
+            {session.user.email ? ` · ${session.user.email}` : ""}
+          </Text>
 
           <View style={styles.actionsRow}>
             <Pressable onPress={() => router.push("/bookings")} style={styles.secondaryBtn}>
@@ -134,7 +374,15 @@ export default function AndroidAccountScreen() {
             ) : null}
           </View>
 
-          <Pressable onPress={() => void signOut()} style={styles.signOutBtn}>
+          <Pressable
+            onPress={() => {
+              setAuthStep("phone");
+              setChallenge(null);
+              setOtpCode("");
+              void signOut();
+            }}
+            style={styles.signOutBtn}
+          >
             <Text style={styles.signOutText}>Sign Out</Text>
           </Pressable>
         </View>
@@ -233,79 +481,103 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   sectionTitle: { fontSize: 16, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   meta: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
-  tabRow: { flexDirection: "row", gap: 8 },
-  tabPill: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: NIGHTLIFEZ_TOKENS.colors.border
-  },
-  tabPillActive: {
-    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
-    borderColor: NIGHTLIFEZ_TOKENS.colors.primary
-  },
-  tabText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   label: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted, marginTop: 4 },
   input: {
     borderWidth: 1,
     borderColor: NIGHTLIFEZ_TOKENS.colors.border,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 14
+    paddingVertical: 10,
+    fontSize: 14,
+    color: NIGHTLIFEZ_TOKENS.colors.ink
   },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  otpInput: {
+    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 8
+  },
+  phoneHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  linkText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  previewOtpBox: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft,
+    padding: 10,
+    borderRadius: 12
+  },
+  previewOtpText: { fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  legalNote: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted, textAlign: "center" },
+  qaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: NIGHTLIFEZ_TOKENS.colors.border
+  },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: NIGHTLIFEZ_TOKENS.colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted
   },
   chipActive: {
     borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
     backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft
   },
-  chipText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  chipText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   chipTextActive: { color: NIGHTLIFEZ_TOKENS.colors.primary },
   saveBtn: {
-    marginTop: 6,
     backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: "center"
+    alignItems: "center",
+    marginTop: 4
   },
+  btnDisabled: { opacity: 0.5 },
   saveBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  actionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  actionsRow: { flexDirection: "row", gap: 8, marginTop: 4 },
   secondaryBtn: {
     borderWidth: 1,
     borderColor: NIGHTLIFEZ_TOKENS.colors.border,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     alignItems: "center"
   },
   secondaryBtnText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   primaryPillBtn: {
-    backgroundColor: NIGHTLIFEZ_TOKENS.colors.ink,
-    borderRadius: 10,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10
   },
   primaryPillText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
-  signOutBtn: { paddingVertical: 6 },
-  signOutText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.soldOut },
-  savedRow: { paddingVertical: 6 },
-  savedLink: { fontSize: 13, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
-  notifBox: {
-    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted,
-    borderRadius: 10,
-    padding: 10,
-    gap: 2
+  signOutBtn: {
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center"
   },
-  notifTitle: { fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
-  errorText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.soldOut },
-  savedNote: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.available }
+  signOutText: { fontSize: 12, fontWeight: "700", color: "#DC2626" },
+  savedNote: { fontSize: 12, fontWeight: "700", color: "#16A34A" },
+  errorText: { fontSize: 12, fontWeight: "700", color: "#DC2626" },
+  savedRow: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: NIGHTLIFEZ_TOKENS.colors.border
+  },
+  savedLink: { fontSize: 13, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  notifBox: { backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted, borderRadius: 12, padding: 10, gap: 3 },
+  notifTitle: { fontSize: 13, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink }
 });

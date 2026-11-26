@@ -71,7 +71,15 @@ export default function OrganiserPortalPage() {
         return;
       }
       setData(json);
-      if (json.organizations?.length > 0 && !selectedOrgId) {
+      const urlOrg =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("org")
+          : null;
+      const validUrlOrg =
+        urlOrg && json.organizations?.some((o: Organization) => o.id === urlOrg) ? urlOrg : null;
+      if (validUrlOrg) {
+        setSelectedOrgId(validUrlOrg);
+      } else if (json.organizations?.length > 0 && !selectedOrgId) {
         setSelectedOrgId(json.organizations[0].id);
       }
       if (json.events?.length > 0 && !offerEventId) {

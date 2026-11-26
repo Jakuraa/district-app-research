@@ -47,11 +47,13 @@ async function run() {
     await page.getByText(/DEMO RESERVATION CONFIRMED/i).waitFor({ timeout: 10000 });
     console.log("E2E attendee booking & hold flow passed.");
 
-    // 2. Organiser portal sign-in & verification
+    // 2. Organiser portal phone-first OTP sign-in & verification
     await page.goto(`${BASE_URL}/account`, { waitUntil: "networkidle" });
-    await page.getByPlaceholder("asha@nightlifez.test").fill("organiser@nightlifez.test");
-    await page.getByPlaceholder("Minimum 8 characters").fill(DEMO_PASS);
-    await page.getByRole("button", { name: "Sign In", exact: true }).nth(1).click();
+    await page.locator("#nlz-phone-input").fill("9876500005");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    const syntheticOtp = await page.getByTestId("preview-synthetic-otp").innerText();
+    await page.locator("#nlz-otp-input").fill(syntheticOtp.trim());
+    await page.getByRole("button", { name: "Verify & Continue", exact: true }).click();
     await page.getByText(/Meera Nair/i).waitFor({ timeout: 8000 });
 
     await page.goto(`${BASE_URL}/organiser`, { waitUntil: "networkidle" });

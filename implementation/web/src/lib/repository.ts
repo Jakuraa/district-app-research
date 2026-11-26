@@ -1281,7 +1281,7 @@ export async function listRefundRequests(filters?: {
 export async function decideRefundRequest(
   refundId: string,
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<RefundRequest> {
   const input = decideRefundSchema.parse(rawInput);
   const now = new Date().toISOString();

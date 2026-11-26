@@ -2,15 +2,38 @@
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  email TEXT UNIQUE,
+  password_hash TEXT,
   full_name TEXT NOT NULL,
   phone TEXT,
+  phone_verified_at TIMESTAMPTZ,
   preferred_city_slug TEXT NOT NULL DEFAULT 'bengaluru',
   favorite_categories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
   status TEXT NOT NULL DEFAULT 'ACTIVE',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON users (phone) WHERE phone IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS auth_otp_challenges (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'LOGIN',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  resend_count INTEGER NOT NULL DEFAULT 0,
+  last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_ip TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_otp_challenges_phone ON auth_otp_challenges (phone, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,

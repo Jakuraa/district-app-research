@@ -4,4 +4,6 @@ export * from "./tokens.ts";
 export * from "./schemas.ts";
 export * from "./pricing.ts";
 export * from "./seed.ts";
+export * from "./phone.ts";
+export * from "./qa-directory.ts";
 export * from "./api-client.ts";

@@ -55,8 +55,27 @@ export const signInSchema = z.object({
   password: z.string().min(1).max(128)
 });
 
+export const otpRequestSchema = z.object({
+  phone: z.string().trim().min(6).max(24),
+  countryCode: z.string().trim().min(2).max(6).default("+91"),
+  purpose: z.enum(["LOGIN", "SIGNUP", "VERIFY"]).default("LOGIN")
+});
+
+export const otpResendSchema = z.object({
+  challengeId: z.string().trim().min(6).max(80)
+});
+
+export const otpVerifySchema = z.object({
+  challengeId: z.string().trim().min(6).max(80),
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit verification code."),
+  fullName: z.string().trim().min(2).max(80).optional(),
+  email: z.string().trim().email().max(120).optional().nullable(),
+  preferredCitySlug: z.string().trim().min(1).max(60).optional()
+});
+
 export const profileUpdateSchema = z.object({
   fullName: z.string().trim().min(2).max(80).optional(),
+  email: z.string().trim().email().max(120).optional().nullable(),
   phone: z.string().trim().max(24).optional().nullable(),
   preferredCitySlug: z.string().trim().min(1).max(60).optional(),
   favoriteCategories: z.array(z.string().trim().max(32)).max(12).optional()

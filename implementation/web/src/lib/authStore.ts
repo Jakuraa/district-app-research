@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import {
   assignRoleSchema,
+  normalizePhoneNumber,
   profileUpdateSchema,
   signInSchema,
   signUpSchema,
@@ -19,13 +20,15 @@ import {
 import { getPool } from "./db.ts";
 import { ensureSchemaBootstrapped } from "./bootstrapDb.ts";
 import { getMemoryStore } from "./memoryStore.ts";
+import { resolveWorkspaces } from "./otpService.ts";
 
 function mapUserRow(row: Record<string, unknown>): UserAccount {
   return {
     id: String(row.id),
-    email: String(row.email),
+    email: row.email ? String(row.email) : null,
     fullName: String(row.full_name),
     phone: row.phone ? String(row.phone) : null,
+    phoneVerifiedAt: row.phone_verified_at ? new Date(String(row.phone_verified_at)).toISOString() : null,
     preferredCitySlug: String(row.preferred_city_slug ?? "bengaluru"),
     favoriteCategories: (row.favorite_categories_json as string[]) ?? [],
     status: (row.status as UserAccount["status"]) ?? "ACTIVE",
@@ -48,7 +51,7 @@ function mapRoleRow(row: Record<string, unknown>): RoleAssignmentRecord {
 
 export async function recordAuditLog(params: {
   actorUserId: string | null;
-  actorEmail: string;
+  actorEmail: string | null;
   actorRole: string;
   action: string;
   targetType: string;
@@ -56,10 +59,11 @@ export async function recordAuditLog(params: {
   beforeJson?: unknown;
   afterJson?: unknown;
 }): Promise<AuditLogEntry> {
+  const safeActorEmail = params.actorEmail ?? "phone-user";
   const entry: AuditLogEntry = {
     id: `aud_${crypto.randomUUID().slice(0, 12)}`,
     actorUserId: params.actorUserId,
-    actorEmail: params.actorEmail,
+    actorEmail: safeActorEmail,
     actorRole: params.actorRole,
     action: params.action,
     targetType: params.targetType,
@@ -128,7 +132,7 @@ export async function signUpUser(rawInput: unknown): Promise<AuthSessionView & {
   const pool = getPool();
   if (!pool) {
     const store = getMemoryStore();
-    if (store.users.some((u) => u.email.toLowerCase() === emailLower)) {
+    if (store.users.some((u) => u.email?.toLowerCase() === emailLower)) {
       throw new Error("An account with this email already exists.");
     }
     const user: UserAccount = {
@@ -211,8 +215,8 @@ export async function signInUser(rawInput: unknown): Promise<AuthSessionView & {
   const pool = getPool();
   if (!pool) {
     const store = getMemoryStore();
-    const found = store.users.find((u) => u.email.toLowerCase() === emailLower);
-    if (!found || !verifyPassword(input.password, found.passwordHash)) {
+    const found = store.users.find((u) => u.email?.toLowerCase() === emailLower);
+    if (!found || !found.passwordHash || !verifyPassword(input.password, found.passwordHash)) {
       throw new Error("Invalid email or password.");
     }
     if (found.status === "SUSPENDED") {
@@ -236,7 +240,7 @@ export async function signInUser(rawInput: unknown): Promise<AuthSessionView & {
     throw new Error("Invalid email or password.");
   }
   const row = uRes.rows[0];
-  if (!verifyPassword(input.password, String(row.password_hash))) {
+  if (!row.password_hash || !verifyPassword(input.password, String(row.password_hash))) {
     throw new Error("Invalid email or password.");
   }
   if (String(row.status) === "SUSPENDED") {
@@ -280,7 +284,9 @@ export async function getSessionByToken(token: string | null): Promise<AuthSessi
     if (!found) return { user: null, assignments: [], roles: [] };
     const { passwordHash: _ignored, ...user } = found;
     const assignments = store.roleAssignments.filter((r) => r.userId === user.id);
-    return { user, assignments, roles: extractRolesFromAssignments(assignments) };
+    const orgMap = new Map(store.organizations.map((o) => [o.id, o.name]));
+    const { workspaces, defaultWorkspacePath } = resolveWorkspaces(assignments, orgMap);
+    return { user, assignments, roles: extractRolesFromAssignments(assignments), workspaces, defaultWorkspacePath };
   }
   await ensureSchemaBootstrapped(pool);
 
@@ -293,9 +299,14 @@ export async function getSessionByToken(token: string | null): Promise<AuthSessi
   );
   if (res.rowCount === 0) return { user: null, assignments: [], roles: [] };
   const user = mapUserRow(res.rows[0]);
-  const raRes = await pool.query("SELECT * FROM role_assignments WHERE user_id = $1", [user.id]);
+  const [raRes, orgRes] = await Promise.all([
+    pool.query("SELECT * FROM role_assignments WHERE user_id = $1", [user.id]),
+    pool.query("SELECT id, name FROM organizations")
+  ]);
   const assignments = raRes.rows.map(mapRoleRow);
-  return { user, assignments, roles: extractRolesFromAssignments(assignments) };
+  const orgMap = new Map(orgRes.rows.map((o) => [String(o.id), String(o.name)]));
+  const { workspaces, defaultWorkspacePath } = resolveWorkspaces(assignments, orgMap);
+  return { user, assignments, roles: extractRolesFromAssignments(assignments), workspaces, defaultWorkspacePath };
 }
 
 export async function getSessionFromRequest(request: Request): Promise<AuthSessionView> {
@@ -305,13 +316,35 @@ export async function getSessionFromRequest(request: Request): Promise<AuthSessi
 
 export async function updateUserProfile(userId: string, rawInput: unknown): Promise<UserAccount> {
   const input = profileUpdateSchema.parse(rawInput);
+  const normalizedPhone =
+    input.phone !== undefined
+      ? input.phone
+        ? normalizePhoneNumber(input.phone)
+        : null
+      : undefined;
+  const normalizedEmail =
+    input.email !== undefined
+      ? input.email
+        ? input.email.toLowerCase()
+        : null
+      : undefined;
+
   const pool = getPool();
   if (!pool) {
     const store = getMemoryStore();
     const found = store.users.find((u) => u.id === userId);
     if (!found) throw new Error("User not found.");
+    if (normalizedPhone) {
+      const dupPhone = store.users.find((u) => u.id !== userId && u.phone === normalizedPhone);
+      if (dupPhone) throw new Error("This phone number is already linked to another account.");
+    }
+    if (normalizedEmail) {
+      const dupEmail = store.users.find((u) => u.id !== userId && u.email?.toLowerCase() === normalizedEmail);
+      if (dupEmail) throw new Error("This email address is already linked to another account.");
+    }
     if (input.fullName !== undefined) found.fullName = input.fullName;
-    if (input.phone !== undefined) found.phone = input.phone;
+    if (normalizedEmail !== undefined) found.email = normalizedEmail;
+    if (normalizedPhone !== undefined) found.phone = normalizedPhone;
     if (input.preferredCitySlug !== undefined) found.preferredCitySlug = input.preferredCitySlug;
     if (input.favoriteCategories !== undefined) found.favoriteCategories = input.favoriteCategories;
     const { passwordHash: _ignored, ...user } = found;
@@ -321,17 +354,39 @@ export async function updateUserProfile(userId: string, rawInput: unknown): Prom
   const currentRes = await pool.query("SELECT * FROM users WHERE id = $1 LIMIT 1", [userId]);
   if (currentRes.rowCount === 0) throw new Error("User not found.");
   const current = mapUserRow(currentRes.rows[0]);
+
+  if (normalizedPhone) {
+    const dupPhone = await pool.query("SELECT id FROM users WHERE phone = $1 AND id <> $2 LIMIT 1", [
+      normalizedPhone,
+      userId
+    ]);
+    if ((dupPhone.rowCount ?? 0) > 0) {
+      throw new Error("This phone number is already linked to another account.");
+    }
+  }
+  if (normalizedEmail) {
+    const dupEmail = await pool.query(
+      "SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id <> $2 LIMIT 1",
+      [normalizedEmail, userId]
+    );
+    if ((dupEmail.rowCount ?? 0) > 0) {
+      throw new Error("This email address is already linked to another account.");
+    }
+  }
+
   const res = await pool.query(
     `UPDATE users SET
        full_name = $2,
-       phone = $3,
-       preferred_city_slug = $4,
-       favorite_categories_json = $5::jsonb
+       email = $3,
+       phone = $4,
+       preferred_city_slug = $5,
+       favorite_categories_json = $6::jsonb
      WHERE id = $1 RETURNING *`,
     [
       userId,
       input.fullName ?? current.fullName,
-      input.phone !== undefined ? input.phone : current.phone,
+      normalizedEmail !== undefined ? normalizedEmail : current.email,
+      normalizedPhone !== undefined ? normalizedPhone : current.phone,
       input.preferredCitySlug ?? current.preferredCitySlug,
       JSON.stringify(input.favoriteCategories ?? current.favoriteCategories)
     ]

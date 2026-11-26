@@ -62,7 +62,7 @@ export async function listOrganizations(scopeOrgIds?: string[]): Promise<Organiz
 
 export async function createOrganization(
   rawInput: unknown,
-  actor: { id: string; email: string }
+  actor: { id: string; email: string | null }
 ): Promise<Organization> {
   const input = createOrganizationSchema.parse(rawInput);
   const slugBase = input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -122,7 +122,7 @@ export async function createOrganization(
 
 export async function upsertOrganiserEvent(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<PulseEvent> {
   const input = upsertEventSchema.parse(rawInput);
   const venues = await listVenues();
@@ -421,7 +421,7 @@ export async function upsertEventOffer(rawInput: unknown) {
 
 export async function inviteStaffMember(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<StaffInvitation> {
   const input = inviteStaffSchema.parse(rawInput);
   const invite: StaffInvitation = {
@@ -442,7 +442,7 @@ export async function inviteStaffMember(
   if (!pool) {
     const store = getMemoryStore();
     store.staffInvitations.unshift(invite);
-    const existingUser = store.users.find((u) => u.email.toLowerCase() === invite.email);
+    const existingUser = store.users.find((u) => u.email?.toLowerCase() === invite.email);
     if (existingUser) {
       invite.status = "ACCEPTED";
       store.roleAssignments.push({
@@ -503,7 +503,7 @@ export async function listStaffInvitations(organizationId?: string): Promise<Sta
 
 export async function updateVenueDetails(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<Venue> {
   const input = updateVenueSchema.parse(rawInput);
   const venues = await listVenues();
@@ -589,7 +589,7 @@ export async function listStaffAssignedEvents(assignments: readonly RoleAssignme
 
 export async function verifyAndCheckInTicket(
   rawInput: unknown,
-  actor: { id: string; email: string }
+  actor: { id: string; email: string | null }
 ): Promise<{
   valid: boolean;
   result: ScanResultCode;
@@ -804,7 +804,7 @@ export async function verifyAndCheckInTicket(
 
 export async function syncOfflineScans(
   rawInput: unknown,
-  actor: { id: string; email: string }
+  actor: { id: string; email: string | null }
 ) {
   const input = offlineScanSyncSchema.parse(rawInput);
   const results = [];
@@ -947,7 +947,7 @@ export async function listSettlements(organizationId?: string): Promise<Settleme
 
 export async function createSettlementBatch(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<SettlementBatch> {
   const input = settlementCreateSchema.parse(rawInput);
   const ledger = await listLedgerEntries(input.organizationId);
@@ -993,7 +993,7 @@ export async function createSettlementBatch(
 
 export async function moderateTarget(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ) {
   const input = moderationActionSchema.parse(rawInput);
   const pool = getPool();
@@ -1155,7 +1155,7 @@ export async function listSupportCases(userId?: string): Promise<SupportCase[]> 
 
 export async function createSupportCase(
   rawInput: unknown,
-  actor: { id: string | null; email: string }
+  actor: { id: string | null; email: string | null }
 ): Promise<SupportCase> {
   const input = supportCaseCreateSchema.parse(rawInput);
   const now = new Date().toISOString();
@@ -1169,7 +1169,7 @@ export async function createSupportCase(
     priority: input.priority,
     status: "OPEN",
     assignedTo: null,
-    notes: [{ author: actor.email, text: input.message, createdAt: now }],
+    notes: [{ author: actor.email ?? "phone-user", text: input.message, createdAt: now }],
     createdAt: now,
     updatedAt: now
   };
@@ -1189,7 +1189,7 @@ export async function createSupportCase(
 export async function updateSupportCase(
   caseId: string,
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<SupportCase> {
   const input = supportCaseUpdateSchema.parse(rawInput);
   const now = new Date().toISOString();
@@ -1199,7 +1199,7 @@ export async function updateSupportCase(
     if (!found) throw new Error("Support case not found.");
     if (input.status) found.status = input.status;
     if (input.priority) found.priority = input.priority;
-    if (input.note) found.notes.push({ author: actor.email, text: input.note, createdAt: now });
+    if (input.note) found.notes.push({ author: actor.email ?? "phone-user", text: input.note, createdAt: now });
     found.assignedTo = actor.id;
     found.updatedAt = now;
     return found;
@@ -1209,7 +1209,7 @@ export async function updateSupportCase(
   if (res.rowCount === 0) throw new Error("Support case not found.");
   const r = res.rows[0];
   const notes = (r.notes_json as SupportCase["notes"]) ?? [];
-  if (input.note) notes.push({ author: actor.email, text: input.note, createdAt: now });
+  if (input.note) notes.push({ author: actor.email ?? "phone-user", text: input.note, createdAt: now });
   const upd = await pool.query(
     `UPDATE support_cases SET
        status = COALESCE($2, status),
@@ -1252,7 +1252,7 @@ export async function listFeatureFlags(): Promise<FeatureFlag[]> {
 
 export async function upsertFeatureFlag(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<FeatureFlag> {
   const input = featureFlagSchema.parse(rawInput);
   const now = new Date().toISOString();
@@ -1328,7 +1328,7 @@ export async function listNotifications(userId?: string | null): Promise<Platfor
 
 export async function broadcastNotification(
   rawInput: unknown,
-  actor: { id: string; email: string; role: string }
+  actor: { id: string; email: string | null; role: string }
 ): Promise<PlatformNotification> {
   const input = broadcastNotificationSchema.parse(rawInput);
   const notif: PlatformNotification = {

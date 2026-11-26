@@ -7,6 +7,7 @@ import {
   SEED_ORGANIZATIONS,
   SEED_SUPPORT_CASES,
   SEED_VENUES,
+  SYNTHETIC_QA_IDENTITIES,
   type AuditLogEntry,
   type BookingRecord,
   type City,
@@ -14,6 +15,7 @@ import {
   type InventoryHold,
   type LedgerEntry,
   type Organization,
+  type OtpPurpose,
   type PlatformNotification,
   type PulseEvent,
   type RefundRequest,
@@ -30,7 +32,22 @@ import {
 import { hashPassword } from "./auth.ts";
 
 export interface MemoryUserRecord extends UserAccount {
-  passwordHash: string;
+  passwordHash: string | null;
+}
+
+export interface MemoryOtpChallengeRecord {
+  id: string;
+  phone: string;
+  otpHash: string;
+  purpose: OtpPurpose;
+  attempts: number;
+  maxAttempts: number;
+  resendCount: number;
+  lastSentAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  createdIp: string | null;
+  createdAt: string;
 }
 
 export interface MemorySessionRecord {
@@ -49,6 +66,7 @@ export interface MemoryStore {
   events: PulseEvent[];
   users: MemoryUserRecord[];
   sessions: MemorySessionRecord[];
+  otpChallenges: MemoryOtpChallengeRecord[];
   roleAssignments: RoleAssignmentRecord[];
   staffInvitations: StaffInvitation[];
   holds: InventoryHold[];
@@ -74,97 +92,31 @@ function createInitialStore(): MemoryStore {
   const demoPassword = process.env.NIGHTLIFEZ_SANDBOX_DEMO_PASSWORD || "NightlifezDemo#2026";
   const defaultHash = hashPassword(demoPassword);
 
-  const users: MemoryUserRecord[] = [
-    {
-      id: "usr-attendee-demo",
-      email: "asha@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Asha Rao",
-      phone: "+91 98765 00001",
-      preferredCitySlug: "bengaluru",
-      favoriteCategories: ["concerts", "dining"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    },
-    {
-      id: "usr-super-admin",
-      email: "admin@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Nikhil Verma (Platform Admin)",
-      phone: null,
-      preferredCitySlug: "bengaluru",
-      favoriteCategories: ["concerts", "festivals"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    },
-    {
-      id: "usr-support-agent",
-      email: "support@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Riya Menon (Support Agent)",
-      phone: null,
-      preferredCitySlug: "mumbai",
-      favoriteCategories: ["comedy"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    },
-    {
-      id: "usr-finance-ops",
-      email: "finance@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Vikram Kulkarni (Finance Ops)",
-      phone: null,
-      preferredCitySlug: "mumbai",
-      favoriteCategories: ["festivals"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    },
-    {
-      id: "usr-organiser-owner",
-      email: "organiser@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Meera Nair (Organiser Owner)",
-      phone: null,
-      preferredCitySlug: "bengaluru",
-      favoriteCategories: ["festivals", "music"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    },
-    {
-      id: "usr-venue-manager",
-      email: "venue@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Arjun Shetty (Venue Manager)",
-      phone: null,
-      preferredCitySlug: "bengaluru",
-      favoriteCategories: ["concerts"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    },
-    {
-      id: "usr-checkin-staff",
-      email: "staff@nightlifez.test",
-      passwordHash: defaultHash,
-      fullName: "Kiran Das (Gate Staff)",
-      phone: null,
-      preferredCitySlug: "bengaluru",
-      favoriteCategories: ["concerts"],
-      status: "ACTIVE",
-      createdAt: "2026-11-26T00:00:00Z"
-    }
-  ];
+  const users: MemoryUserRecord[] = SYNTHETIC_QA_IDENTITIES.map((qa) => ({
+    id: qa.id,
+    email: qa.email,
+    passwordHash: defaultHash,
+    fullName: qa.fullName,
+    phone: qa.phone,
+    phoneVerifiedAt: "2026-11-26T00:00:00Z",
+    preferredCitySlug: qa.preferredCitySlug,
+    favoriteCategories: [...qa.favoriteCategories],
+    status: "ACTIVE",
+    createdAt: "2026-11-26T00:00:00Z"
+  }));
 
-  const roleAssignments: RoleAssignmentRecord[] = [
-    { id: "ra-att-1", userId: "usr-attendee-demo", role: "attendee", organizationId: null, venueSlug: null, eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-adm-1", userId: "usr-super-admin", role: "platform_super_admin", organizationId: null, venueSlug: null, eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-sup-1", userId: "usr-support-agent", role: "support_agent", organizationId: null, venueSlug: null, eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-fin-1", userId: "usr-finance-ops", role: "finance_ops", organizationId: null, venueSlug: null, eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-org-1", userId: "usr-organiser-owner", role: "organiser_owner", organizationId: "org-nightlifez-originals", venueSlug: null, eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-org-2", userId: "usr-organiser-owner", role: "organiser_admin", organizationId: "org-harbor-collective", venueSlug: null, eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-ven-1", userId: "usr-venue-manager", role: "venue_manager", organizationId: "org-nightlifez-originals", venueSlug: "skyline-amphitheatre-bengaluru", eventId: null, grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-stf-1", userId: "usr-checkin-staff", role: "checkin_staff", organizationId: "org-nightlifez-originals", venueSlug: "skyline-amphitheatre-bengaluru", eventId: "evt-solstice-2026", grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" },
-    { id: "ra-stf-2", userId: "usr-checkin-staff", role: "box_office", organizationId: "org-nightlifez-originals", venueSlug: "banyan-courtyard-coimbatore", eventId: "evt-southern-cipher-2026", grantedBy: "usr-super-admin", createdAt: "2026-11-26T00:00:00Z" }
-  ];
+  const roleAssignments: RoleAssignmentRecord[] = SYNTHETIC_QA_IDENTITIES.flatMap((qa) =>
+    qa.roles.map((r) => ({
+      id: r.id,
+      userId: qa.id,
+      role: r.role,
+      organizationId: r.organizationId,
+      venueSlug: r.venueSlug,
+      eventId: r.eventId,
+      grantedBy: "usr-super-admin",
+      createdAt: "2026-11-26T00:00:00Z"
+    }))
+  );
 
   const events = structuredClone(SEED_EVENTS).map((evt) => ({
     ...evt,
@@ -196,6 +148,7 @@ function createInitialStore(): MemoryStore {
     events,
     users,
     sessions: [],
+    otpChallenges: [],
     roleAssignments,
     staffInvitations: [],
     holds: [],

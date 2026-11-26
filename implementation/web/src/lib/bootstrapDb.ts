@@ -7,7 +7,8 @@ import {
   SEED_NOTIFICATIONS,
   SEED_ORGANIZATIONS,
   SEED_SUPPORT_CASES,
-  SEED_VENUES
+  SEED_VENUES,
+  SYNTHETIC_QA_IDENTITIES
 } from "@nightlifez/shared";
 import { hashPassword } from "./auth.ts";
 
@@ -18,15 +19,38 @@ declare global {
 const DDL_STATEMENTS = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  email TEXT UNIQUE,
+  password_hash TEXT,
   full_name TEXT NOT NULL,
   phone TEXT,
+  phone_verified_at TIMESTAMPTZ,
   preferred_city_slug TEXT NOT NULL DEFAULT 'bengaluru',
   favorite_categories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
   status TEXT NOT NULL DEFAULT 'ACTIVE',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON users (phone) WHERE phone IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS auth_otp_challenges (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'LOGIN',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  resend_count INTEGER NOT NULL DEFAULT 0,
+  last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_ip TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_otp_challenges_phone ON auth_otp_challenges (phone, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
@@ -412,27 +436,30 @@ async function runBootstrap(pool: Pool): Promise<void> {
     }
 
     const demoPass = process.env.NIGHTLIFEZ_SANDBOX_DEMO_PASSWORD || "NightlifezDemo#2026";
-    const sandboxUsers = [
-      { id: "usr-attendee-demo", email: "asha@nightlifez.test", name: "Asha Rao", role: "attendee", org: null, venue: null, event: null },
-      { id: "usr-super-admin", email: "admin@nightlifez.test", name: "Nikhil Verma (Platform Admin)", role: "platform_super_admin", org: null, venue: null, event: null },
-      { id: "usr-support-agent", email: "support@nightlifez.test", name: "Riya Menon (Support Agent)", role: "support_agent", org: null, venue: null, event: null },
-      { id: "usr-finance-ops", email: "finance@nightlifez.test", name: "Vikram Kulkarni (Finance Ops)", role: "finance_ops", org: null, venue: null, event: null },
-      { id: "usr-organiser-owner", email: "organiser@nightlifez.test", name: "Meera Nair (Organiser Owner)", role: "organiser_owner", org: "org-nightlifez-originals", venue: null, event: null },
-      { id: "usr-venue-manager", email: "venue@nightlifez.test", name: "Arjun Shetty (Venue Manager)", role: "venue_manager", org: "org-nightlifez-originals", venue: "skyline-amphitheatre-bengaluru", event: null },
-      { id: "usr-checkin-staff", email: "staff@nightlifez.test", name: "Kiran Das (Gate Staff)", role: "checkin_staff", org: "org-nightlifez-originals", venue: "skyline-amphitheatre-bengaluru", event: "evt-solstice-2026" }
-    ];
-
-    for (const u of sandboxUsers) {
+    for (const u of SYNTHETIC_QA_IDENTITIES) {
       await client.query(
-        `INSERT INTO users (id, email, password_hash, full_name, status)
-         VALUES ($1,$2,$3,$4,'ACTIVE') ON CONFLICT (id) DO NOTHING`,
-        [u.id, u.email, hashPassword(demoPass), u.name]
+        `INSERT INTO users (id, email, password_hash, full_name, phone, phone_verified_at, preferred_city_slug, favorite_categories_json, status)
+         VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7::jsonb,'ACTIVE')
+         ON CONFLICT (id) DO UPDATE SET
+           phone = COALESCE(users.phone, EXCLUDED.phone),
+           phone_verified_at = COALESCE(users.phone_verified_at, EXCLUDED.phone_verified_at)`,
+        [
+          u.id,
+          u.email,
+          hashPassword(demoPass),
+          u.fullName,
+          u.phone,
+          u.preferredCitySlug,
+          JSON.stringify(u.favoriteCategories)
+        ]
       );
-      await client.query(
-        `INSERT INTO role_assignments (id, user_id, role, organization_id, venue_slug, event_id, granted_by)
-         VALUES ($1,$2,$3,$4,$5,$6,'usr-super-admin') ON CONFLICT (id) DO NOTHING`,
-        [`ra_${u.id}`, u.id, u.role, u.org, u.venue, u.event]
-      );
+      for (const r of u.roles) {
+        await client.query(
+          `INSERT INTO role_assignments (id, user_id, role, organization_id, venue_slug, event_id, granted_by)
+           VALUES ($1,$2,$3,$4,$5,$6,'usr-super-admin') ON CONFLICT (id) DO NOTHING`,
+          [r.id, u.id, r.role, r.organizationId, r.venueSlug, r.eventId]
+        );
+      }
     }
 
     for (const org of SEED_ORGANIZATIONS) {

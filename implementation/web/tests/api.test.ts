@@ -120,7 +120,7 @@ test("inventory holds, idempotency keys, duplicate check-ins, and offline sync c
     {
       eventSlug: "solstice-soundwave-bengaluru-2026",
       attendeeName: "QA Tester",
-      attendeeEmail: userSession.user.email,
+      attendeeEmail: userSession.user.email ?? "qa@nightlifez.test",
       holdId: hold.id,
       idempotencyKey: idemKey,
       items: [{ tierId: "tier-solstice-ga", quantity: 2 }]
@@ -131,7 +131,7 @@ test("inventory holds, idempotency keys, duplicate check-ins, and offline sync c
     {
       eventSlug: "solstice-soundwave-bengaluru-2026",
       attendeeName: "QA Tester",
-      attendeeEmail: userSession.user.email,
+      attendeeEmail: userSession.user.email ?? "qa@nightlifez.test",
       idempotencyKey: idemKey,
       items: [{ tierId: "tier-solstice-ga", quantity: 2 }]
     },

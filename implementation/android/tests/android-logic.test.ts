@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { calculatePriceBreakdown, SEED_EVENTS } from "../../shared/src/index.ts";
+import {
+  ALL_ROLES,
+  calculatePriceBreakdown,
+  normalizePhoneNumber,
+  otpRequestSchema,
+  otpVerifySchema,
+  SEED_EVENTS,
+  SYNTHETIC_QA_IDENTITIES
+} from "../../shared/src/index.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,4 +42,15 @@ test("Android booking screen shares deterministic pricing rules from @nightlifez
   assert.equal(breakdown.subtotalInr, 7998);
   assert.equal(breakdown.discountInr, 500);
   assert.equal(breakdown.appliedOfferCode, "GOASUN500");
+});
+
+test("Android phone-first OTP schemas, normalization, and QA role parity match backend", () => {
+  assert.equal(normalizePhoneNumber("98765 00001", "+91"), "+919876500001");
+  assert.equal(otpRequestSchema.parse({ phone: "9876500001" }).countryCode, "+91");
+  assert.throws(() => otpVerifySchema.parse({ challengeId: "otp_123456", code: "123" }));
+
+  const qaRoles = new Set(SYNTHETIC_QA_IDENTITIES.flatMap((q) => q.roles.map((r) => r.role)));
+  for (const role of ALL_ROLES) {
+    assert.ok(qaRoles.has(role), `Missing Android QA identity for role: ${role}`);
+  }
 });
