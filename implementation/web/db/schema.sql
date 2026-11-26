@@ -2,8 +2,11 @@ CREATE TABLE IF NOT EXISTS cities (
   slug TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   state TEXT NOT NULL,
+  locality TEXT,
   is_popular BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE cities ADD COLUMN IF NOT EXISTS locality TEXT;
 
 CREATE TABLE IF NOT EXISTS venues (
   slug TEXT PRIMARY KEY,
@@ -13,10 +16,15 @@ CREATE TABLE IF NOT EXISTS venues (
   headline TEXT NOT NULL,
   summary TEXT NOT NULL,
   open_status_label TEXT NOT NULL,
+  artwork_url TEXT,
+  distance_km NUMERIC,
   timings_json JSONB NOT NULL,
   facilities_json JSONB NOT NULL,
   sections_json JSONB NOT NULL
 );
+
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS artwork_url TEXT;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS distance_km NUMERIC;
 
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
@@ -29,6 +37,11 @@ CREATE TABLE IF NOT EXISTS events (
   starts_at TIMESTAMPTZ NOT NULL,
   ends_at TIMESTAMPTZ NOT NULL,
   date_label TEXT NOT NULL,
+  artwork_url TEXT,
+  age_limit TEXT,
+  language TEXT,
+  duration_label TEXT,
+  distance_km NUMERIC,
   organizer_name TEXT NOT NULL,
   organizer_rating INTEGER NOT NULL,
   organizer_tenure TEXT NOT NULL,
@@ -43,6 +56,12 @@ CREATE TABLE IF NOT EXISTS events (
   is_featured BOOLEAN NOT NULL DEFAULT FALSE,
   accent_color TEXT NOT NULL
 );
+
+ALTER TABLE events ADD COLUMN IF NOT EXISTS artwork_url TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS age_limit TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS language TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS duration_label TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS distance_km NUMERIC;
 
 CREATE TABLE IF NOT EXISTS ticket_tiers (
   id TEXT PRIMARY KEY,

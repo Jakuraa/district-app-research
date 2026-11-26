@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16"/>
+      <stop offset="100%" stop-color="#311042"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#g)"/>
+  
+      <rect x="80" y="160" width="640" height="180" rx="28" fill="#ffffff" opacity="0.09"/>
+      <circle cx="190" cy="140" r="110" fill="#f43f5e" opacity="0.35"/>
+      <circle cx="630" cy="280" r="140" fill="#ffffff" opacity="0.1"/>
+  <text x="40" y="382" text-anchor="start" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="800">AFTER DARK</text>
+  <text x="40" y="416" text-anchor="start" fill="#e5e7eb" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600">Late-Night Rooms &amp; Rooftops</text>
+</svg>

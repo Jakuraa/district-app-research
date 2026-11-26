@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#78350f"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#g)"/>
+  
+      <circle cx="400" cy="210" r="130" fill="#ffffff" opacity="0.12"/>
+      <circle cx="400" cy="210" r="95" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.7"/>
+      <circle cx="400" cy="210" r="62" fill="#fde68a" opacity="0.55"/>
+      <rect x="235" y="130" width="10" height="150" rx="5" fill="#ffffff" opacity="0.7"/>
+      <rect x="555" y="130" width="10" height="150" rx="5" fill="#ffffff" opacity="0.7"/>
+      <path d="M0 360 L800 330 L800 450 L0 450 Z" fill="#0b0d14" opacity="0.5"/>
+  <text x="40" y="382" text-anchor="start" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="800">Kovai Heritage</text>
+  <text x="40" y="416" text-anchor="start" fill="#e5e7eb" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600">Kongunadu · Coimbatore</text>
+</svg>

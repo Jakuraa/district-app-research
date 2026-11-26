@@ -2,9 +2,23 @@ import { z } from "zod";
 
 export const eventQuerySchema = z.object({
   city: z.string().trim().min(1).max(60).optional(),
-  category: z.enum(["all", "concerts", "festivals", "comedy", "nightlife", "sports", "workshops"]).optional(),
+  category: z
+    .enum([
+      "all",
+      "concerts",
+      "festivals",
+      "comedy",
+      "nightlife",
+      "parties",
+      "music",
+      "sports",
+      "workshops"
+    ])
+    .optional(),
   q: z.string().trim().max(120).optional(),
   dateWindow: z.enum(["all", "today", "tomorrow", "weekend"]).optional(),
+  maxPriceInr: z.number().int().positive().optional(),
+  maxDistanceKm: z.number().positive().optional(),
   sort: z.enum(["featured", "price_asc", "price_desc", "date_asc"]).optional()
 });
 
@@ -18,6 +32,7 @@ export const createBookingSchema = z.object({
   attendeeName: z.string().trim().min(2).max(80),
   attendeeEmail: z.string().trim().email().max(120),
   offerCode: z.string().trim().max(40).optional().nullable(),
+  sessionId: z.string().trim().max(60).optional().nullable(),
   items: z.array(bookingItemInputSchema).min(1).max(6)
 });
 

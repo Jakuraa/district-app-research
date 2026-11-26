@@ -3,15 +3,25 @@ import {
   calculatePriceBreakdown,
   createBookingSchema,
   getMinTierPrice,
+  SEED_ACTIVITIES,
+  SEED_ARTISTS,
   SEED_CITIES,
+  SEED_COLLECTIONS,
   SEED_EVENTS,
+  SEED_MOVIES,
+  SEED_RESTAURANTS,
   SEED_VENUES,
+  type Activity,
+  type Artist,
   type BookingRecord,
   type City,
   type CreateBookingInput,
+  type EditorialCollection,
   type EventQueryInput,
+  type Movie,
   type Offer,
   type PulseEvent,
+  type Restaurant,
   type TicketTier,
   type Venue
 } from "@pulsepass/shared";
@@ -21,14 +31,20 @@ import { getPool } from "./db.ts";
 const memoryEvents: PulseEvent[] = structuredClone(SEED_EVENTS);
 const memoryBookings: BookingRecord[] = [];
 
+const seedEventMap = new Map(SEED_EVENTS.map((e) => [e.slug, e]));
+const seedVenueMap = new Map(SEED_VENUES.map((v) => [v.slug, v]));
+const seedCityMap = new Map(SEED_CITIES.map((c) => [c.slug, c]));
+
 function mapRowToEvent(
   row: Record<string, unknown>,
   tiers: TicketTier[],
   offers: Offer[]
 ): PulseEvent {
+  const slug = String(row.slug);
+  const seedFallback = seedEventMap.get(slug);
   return {
     id: String(row.id),
-    slug: String(row.slug),
+    slug,
     title: String(row.title),
     category: row.category as PulseEvent["category"],
     citySlug: String(row.city_slug),
@@ -37,6 +53,15 @@ function mapRowToEvent(
     startsAt: new Date(String(row.starts_at)).toISOString(),
     endsAt: new Date(String(row.ends_at)).toISOString(),
     dateLabel: String(row.date_label),
+    artworkUrl: row.artwork_url ? String(row.artwork_url) : seedFallback?.artworkUrl,
+    ageLimit: row.age_limit ? String(row.age_limit) : seedFallback?.ageLimit,
+    language: row.language ? String(row.language) : seedFallback?.language,
+    durationLabel: row.duration_label ? String(row.duration_label) : seedFallback?.durationLabel,
+    distanceKm:
+      row.distance_km !== null && row.distance_km !== undefined
+        ? Number(row.distance_km)
+        : seedFallback?.distanceKm,
+    sessions: seedFallback?.sessions,
     organizerName: String(row.organizer_name),
     organizerRating: Number(row.organizer_rating),
     organizerTenure: String(row.organizer_tenure),
@@ -44,7 +69,11 @@ function mapRowToEvent(
     highlights: (row.highlights_json as PulseEvent["highlights"]) ?? [],
     facilities: (row.facilities_json as string[]) ?? [],
     policies: (row.policies_json as string[]) ?? [],
-    lineup: (row.lineup_json as PulseEvent["lineup"]) ?? [],
+    lineup: ((row.lineup_json as PulseEvent["lineup"]) ?? []).map((l, idx) => ({
+      ...l,
+      slug: l.slug ?? seedFallback?.lineup[idx]?.slug,
+      artworkUrl: l.artworkUrl ?? seedFallback?.lineup[idx]?.artworkUrl
+    })),
     salesTimeline: (row.sales_timeline_json as PulseEvent["salesTimeline"]) ?? [],
     activePhase: row.active_phase as PulseEvent["activePhase"],
     partialReservePercent:
@@ -106,6 +135,7 @@ function filterAndSortEvents(events: PulseEvent[], query: EventQueryInput): Puls
         e.title.toLowerCase().includes(needle) ||
         e.venueName.toLowerCase().includes(needle) ||
         e.summary.toLowerCase().includes(needle) ||
+        e.category.toLowerCase().includes(needle) ||
         e.lineup.some((a) => a.name.toLowerCase().includes(needle))
     );
   }
@@ -114,8 +144,17 @@ function filterAndSortEvents(events: PulseEvent[], query: EventQueryInput): Puls
       const day = new Date(e.startsAt).getUTCDay();
       return day === 0 || day === 6 || day === 5;
     });
-  } else if (query.dateWindow === "today" || query.dateWindow === "tomorrow") {
+  } else if (query.dateWindow === "today") {
     result = result.slice(0, 2);
+  } else if (query.dateWindow === "tomorrow") {
+    result = result.slice(1, 4);
+  }
+
+  if (query.maxPriceInr) {
+    result = result.filter((e) => getMinTierPrice(e.tiers) <= query.maxPriceInr!);
+  }
+  if (query.maxDistanceKm) {
+    result = result.filter((e) => (e.distanceKm ?? 5) <= query.maxDistanceKm!);
   }
 
   if (query.sort === "price_asc") {
@@ -161,16 +200,28 @@ export async function listCitiesAndEvents(
     offersByEvt.set(eid, arr);
   }
 
-  const cities: City[] = cityRes.rows.map((r) => ({
-    slug: String(r.slug),
-    name: String(r.name),
-    state: String(r.state),
-    isPopular: Boolean(r.is_popular)
-  }));
+  const cities: City[] = cityRes.rows.map((r) => {
+    const slug = String(r.slug);
+    return {
+      slug,
+      name: String(r.name),
+      state: String(r.state),
+      locality: seedCityMap.get(slug)?.locality,
+      isPopular: Boolean(r.is_popular)
+    };
+  });
 
   const events = evtRes.rows.map((r) =>
     mapRowToEvent(r, tiersByEvt.get(String(r.id)) ?? [], offersByEvt.get(String(r.id)) ?? [])
   );
+
+  // Merge any newer seed events not yet migrated in DB so preview stays complete
+  const dbSlugs = new Set(events.map((e) => e.slug));
+  for (const seedEvt of SEED_EVENTS) {
+    if (!dbSlugs.has(seedEvt.slug)) {
+      events.push(seedEvt);
+    }
+  }
 
   return { cities, events: filterAndSortEvents(events, query) };
 }
@@ -184,6 +235,11 @@ export async function getEventDetail(
 
   const venueData = await getVenueDetail(event.venueSlug);
   return { event, venue: venueData?.venue ?? null };
+}
+
+export async function listVenues(citySlug?: string): Promise<Venue[]> {
+  if (!citySlug || citySlug === "all") return SEED_VENUES;
+  return SEED_VENUES.filter((v) => v.citySlug === citySlug);
 }
 
 export async function getVenueDetail(
@@ -200,8 +256,14 @@ export async function getVenueDetail(
   }
 
   const vRes = await pool.query("SELECT * FROM venues WHERE slug = $1 LIMIT 1", [slug]);
-  if (vRes.rowCount === 0) return null;
+  if (vRes.rowCount === 0) {
+    const seedVenue = seedVenueMap.get(slug);
+    if (!seedVenue) return null;
+    const { events } = await listCitiesAndEvents();
+    return { venue: seedVenue, upcomingEvents: events.filter((e) => e.venueSlug === slug) };
+  }
   const r = vRes.rows[0];
+  const seedVenue = seedVenueMap.get(slug);
   const venue: Venue = {
     slug: String(r.slug),
     name: String(r.name),
@@ -210,6 +272,11 @@ export async function getVenueDetail(
     headline: String(r.headline),
     summary: String(r.summary),
     openStatusLabel: String(r.open_status_label),
+    artworkUrl: r.artwork_url ? String(r.artwork_url) : seedVenue?.artworkUrl,
+    distanceKm:
+      r.distance_km !== null && r.distance_km !== undefined
+        ? Number(r.distance_km)
+        : seedVenue?.distanceKm,
     timings: (r.timings_json as Venue["timings"]) ?? [],
     facilities: (r.facilities_json as string[]) ?? [],
     sections: (r.sections_json as Venue["sections"]) ?? []
@@ -220,6 +287,126 @@ export async function getVenueDetail(
     venue,
     upcomingEvents: events.filter((e) => e.venueSlug === slug)
   };
+}
+
+// Clean demo adapter interfaces for Artists, Movies, Dining, Activities, Collections
+export async function listArtists(city?: string): Promise<Artist[]> {
+  if (!city || city === "all") return SEED_ARTISTS;
+  return SEED_ARTISTS.filter((a) => a.citySlug === city);
+}
+
+export async function getArtistDetail(
+  slug: string
+): Promise<{ artist: Artist; events: PulseEvent[] } | null> {
+  const artist = SEED_ARTISTS.find((a) => a.slug === slug);
+  if (!artist) return null;
+  const { events } = await listCitiesAndEvents();
+  const matching = events.filter(
+    (e) =>
+      artist.upcomingEventSlugs.includes(e.slug) ||
+      e.lineup.some((l) => l.name.toLowerCase() === artist.name.toLowerCase())
+  );
+  return { artist, events: matching };
+}
+
+export async function listMovies(filters?: {
+  city?: string;
+  language?: string;
+  genre?: string;
+  q?: string;
+}): Promise<Movie[]> {
+  let result = SEED_MOVIES.slice();
+  if (filters?.language && filters.language !== "all") {
+    result = result.filter((m) => m.language.toLowerCase() === filters.language!.toLowerCase());
+  }
+  if (filters?.genre && filters.genre !== "all") {
+    result = result.filter((m) =>
+      m.genres.some((g) => g.toLowerCase() === filters.genre!.toLowerCase())
+    );
+  }
+  if (filters?.city && filters.city !== "all") {
+    result = result.filter((m) => m.showtimes.some((s) => s.citySlug === filters.city));
+  }
+  if (filters?.q && filters.q.trim()) {
+    const q = filters.q.trim().toLowerCase();
+    result = result.filter(
+      (m) =>
+        m.title.toLowerCase().includes(q) ||
+        m.language.toLowerCase().includes(q) ||
+        m.genres.some((g) => g.toLowerCase().includes(q))
+    );
+  }
+  return result;
+}
+
+export async function getMovieDetail(slug: string): Promise<Movie | null> {
+  return SEED_MOVIES.find((m) => m.slug === slug) ?? null;
+}
+
+export async function listRestaurants(filters?: {
+  city?: string;
+  cuisine?: string;
+  maxBudget?: number;
+  q?: string;
+}): Promise<Restaurant[]> {
+  let result = SEED_RESTAURANTS.slice();
+  if (filters?.city && filters.city !== "all") {
+    result = result.filter((r) => r.citySlug === filters.city);
+  }
+  if (filters?.cuisine && filters.cuisine !== "all") {
+    result = result.filter((r) =>
+      r.cuisines.some((c) => c.toLowerCase().includes(filters.cuisine!.toLowerCase()))
+    );
+  }
+  if (filters?.maxBudget) {
+    result = result.filter((r) => r.budgetForTwoInr <= filters.maxBudget!);
+  }
+  if (filters?.q && filters.q.trim()) {
+    const q = filters.q.trim().toLowerCase();
+    result = result.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.locality.toLowerCase().includes(q) ||
+        r.cuisines.some((c) => c.toLowerCase().includes(q))
+    );
+  }
+  return result;
+}
+
+export async function getRestaurantDetail(slug: string): Promise<Restaurant | null> {
+  return SEED_RESTAURANTS.find((r) => r.slug === slug) ?? null;
+}
+
+export async function listActivities(filters?: {
+  city?: string;
+  category?: string;
+  q?: string;
+}): Promise<Activity[]> {
+  let result = SEED_ACTIVITIES.slice();
+  if (filters?.city && filters.city !== "all") {
+    result = result.filter((a) => a.citySlug === filters.city);
+  }
+  if (filters?.category && filters.category !== "all") {
+    result = result.filter((a) => a.category === filters.category);
+  }
+  if (filters?.q && filters.q.trim()) {
+    const q = filters.q.trim().toLowerCase();
+    result = result.filter(
+      (a) =>
+        a.title.toLowerCase().includes(q) ||
+        a.venueName.toLowerCase().includes(q) ||
+        a.category.toLowerCase().includes(q)
+    );
+  }
+  return result;
+}
+
+export async function getActivityDetail(slug: string): Promise<Activity | null> {
+  return SEED_ACTIVITIES.find((a) => a.slug === slug) ?? null;
+}
+
+export async function listCollections(): Promise<EditorialCollection[]> {
+  return SEED_COLLECTIONS;
 }
 
 export async function listBookings(email?: string): Promise<BookingRecord[]> {

@@ -16,6 +16,18 @@ export default function RootLayout() {
           name="events/[slug]/book"
           options={{ headerShown: true, title: "Select Tickets" }}
         />
+        <Stack.Screen
+          name="search"
+          options={{ headerShown: true, title: "Search PulsePass" }}
+        />
+        <Stack.Screen
+          name="bookings"
+          options={{ headerShown: true, title: "Digital Ticket Wallet" }}
+        />
+        <Stack.Screen
+          name="account"
+          options={{ headerShown: true, title: "Account & Preferences" }}
+        />
       </Stack>
     </SafeAreaProvider>
   );

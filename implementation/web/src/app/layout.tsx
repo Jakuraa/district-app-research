@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PulsePass — Live Events, Venues & Demo Ticketing",
+  title: "PulsePass — Live Events, Movies, Dining & Play",
   description:
-    "Independent event discovery, venue guide, sales timeline, and demo ticket reservation platform."
+    "Discover concerts, festivals, movies, dining reservations, and city activities on PulsePass."
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-[#f6f7fb] text-[#111319] antialiased">
+      <body className="min-h-screen bg-[#f6f7fb] text-[#111319] antialiased selection:bg-[#efeafe] selection:text-[#5b3df5]">
         {children}
       </body>
     </html>

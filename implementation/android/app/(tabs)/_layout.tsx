@@ -7,13 +7,18 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: PULSEPASS_TOKENS.colors.primary,
         tabBarInactiveTintColor: PULSEPASS_TOKENS.colors.inkMuted,
-        headerShown: true
+        tabBarStyle: {
+          backgroundColor: "#FFFFFF",
+          borderTopColor: PULSEPASS_TOKENS.colors.border
+        },
+        headerShown: false
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Discover" }} />
+      <Tabs.Screen name="index" options={{ title: "For You" }} />
+      <Tabs.Screen name="dining" options={{ title: "Dining" }} />
+      <Tabs.Screen name="movies" options={{ title: "Movies" }} />
       <Tabs.Screen name="events" options={{ title: "Events" }} />
-      <Tabs.Screen name="search" options={{ title: "Search" }} />
-      <Tabs.Screen name="bookings" options={{ title: "Tickets" }} />
+      <Tabs.Screen name="play" options={{ title: "Play" }} />
     </Tabs>
   );
 }
