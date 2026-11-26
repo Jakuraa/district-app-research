@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureSchemaBootstrapped } from "@/lib/bootstrapDb";
 import { getPool } from "@/lib/db";
 
 export async function GET() {
@@ -7,6 +8,7 @@ export async function GET() {
     return NextResponse.json({ ok: true, database: "memory-fallback" });
   }
   try {
+    await ensureSchemaBootstrapped(pool);
     await pool.query("SELECT 1");
     return NextResponse.json({ ok: true, database: "postgres-connected" });
   } catch {

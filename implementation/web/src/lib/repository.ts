@@ -37,6 +37,7 @@ import {
 import { signQrPayload } from "./auth.ts";
 import { recordAuditLog } from "./authStore.ts";
 import { getPool } from "./db.ts";
+import { ensureSchemaBootstrapped } from "./bootstrapDb.ts";
 import { getMemoryStore } from "./memoryStore.ts";
 import { executeDemoPaymentAdapter } from "./paymentAdapter.ts";
 
@@ -212,6 +213,7 @@ export async function listCitiesAndEvents(
       events: filterAndSortEvents(store.events, query, options.includeNonPublished)
     };
   }
+  await ensureSchemaBootstrapped(pool);
 
   const [cityRes, evtRes, tierRes, offerRes] = await Promise.all([
     pool.query("SELECT slug, name, state, locality, is_popular FROM cities ORDER BY is_popular DESC, name ASC"),
@@ -275,6 +277,7 @@ export async function listVenues(citySlug?: string): Promise<Venue[]> {
     if (!citySlug || citySlug === "all") return venues;
     return venues.filter((v) => v.citySlug === citySlug);
   }
+  await ensureSchemaBootstrapped(pool);
 
   const res =
     !citySlug || citySlug === "all"

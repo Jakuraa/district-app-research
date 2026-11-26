@@ -17,6 +17,7 @@ import {
   verifyPassword
 } from "./auth.ts";
 import { getPool } from "./db.ts";
+import { ensureSchemaBootstrapped } from "./bootstrapDb.ts";
 import { getMemoryStore } from "./memoryStore.ts";
 
 function mapUserRow(row: Record<string, unknown>): UserAccount {
@@ -158,6 +159,7 @@ export async function signUpUser(rawInput: unknown): Promise<AuthSessionView & {
 
   const client = await pool.connect();
   try {
+    await ensureSchemaBootstrapped(pool);
     await client.query("BEGIN");
     const existing = await client.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [emailLower]);
     if ((existing.rowCount ?? 0) > 0) {
@@ -227,6 +229,7 @@ export async function signInUser(rawInput: unknown): Promise<AuthSessionView & {
     const { passwordHash: _ignored, ...user } = found;
     return { user, assignments, roles: extractRolesFromAssignments(assignments), token };
   }
+  await ensureSchemaBootstrapped(pool);
 
   const uRes = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1", [emailLower]);
   if (uRes.rowCount === 0) {
@@ -279,6 +282,7 @@ export async function getSessionByToken(token: string | null): Promise<AuthSessi
     const assignments = store.roleAssignments.filter((r) => r.userId === user.id);
     return { user, assignments, roles: extractRolesFromAssignments(assignments) };
   }
+  await ensureSchemaBootstrapped(pool);
 
   const res = await pool.query(
     `SELECT u.* FROM sessions s
