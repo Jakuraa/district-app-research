@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { DISCOVERY_CATEGORIES, PULSEPASS_TOKENS, SEED_CITIES } from "@pulsepass/shared";
+import { DISCOVERY_CATEGORIES, NIGHTLIFEZ_TOKENS, SEED_CITIES } from "@nightlifez/shared";
 
 export default function AndroidAccountScreen() {
   const [name, setName] = useState("Asha Rao");
@@ -70,7 +70,7 @@ export default function AndroidAccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  container: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   content: { padding: 16, paddingBottom: 32 },
   card: {
     backgroundColor: "#FFFFFF",
@@ -78,14 +78,14 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
-  badge: { fontSize: 10, fontWeight: "800", color: PULSEPASS_TOKENS.colors.primary },
-  title: { fontSize: 20, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  label: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.inkMuted, marginTop: 4 },
+  badge: { fontSize: 10, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  title: { fontSize: 20, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  label: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted, marginTop: 4 },
   input: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -94,24 +94,24 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6
   },
   chipActive: {
-    borderColor: PULSEPASS_TOKENS.colors.primary,
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft
   },
-  chipText: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.inkMuted },
-  chipTextActive: { color: PULSEPASS_TOKENS.colors.primary },
+  chipText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  chipTextActive: { color: NIGHTLIFEZ_TOKENS.colors.primary },
   saveBtn: {
     marginTop: 8,
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center"
   },
   saveBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  savedNote: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.available, textAlign: "center" }
+  savedNote: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.available, textAlign: "center" }
 });

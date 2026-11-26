@@ -15,12 +15,12 @@ test("tier availability returns AVAILABLE, NEARLY_SOLD, and SOLD_OUT accurately"
 
 test("PERCENT_CAP offer enforces minOrderInr and maxDiscountInr cap", () => {
   const event = SEED_EVENTS[0];
-  // 1x GA = 1499 (< 2500 minOrderInr for PULSE15)
+  // 1x GA = 1499 (< 2500 minOrderInr for NIGHT15)
   const rejected = calculatePriceBreakdown({
     tiers: event.tiers,
     selections: [{ tierId: "tier-solstice-ga", quantity: 1 }],
     offers: event.offers,
-    offerCode: "PULSE15",
+    offerCode: "NIGHT15",
     now: new Date("2026-11-26T00:00:00Z")
   });
   assert.equal(rejected.discountInr, 0);
@@ -31,12 +31,12 @@ test("PERCENT_CAP offer enforces minOrderInr and maxDiscountInr cap", () => {
     tiers: event.tiers,
     selections: [{ tierId: "tier-solstice-ga", quantity: 2 }],
     offers: event.offers,
-    offerCode: "pulse15",
+    offerCode: "night15",
     now: new Date("2026-11-26T00:00:00Z")
   });
   assert.equal(applied.subtotalInr, 2998);
   assert.equal(applied.discountInr, 400);
-  assert.equal(applied.appliedOfferCode, "PULSE15");
+  assert.equal(applied.appliedOfferCode, "NIGHT15");
   assert.equal(applied.convenienceFeeInr, Math.round((2998 - 400) * 0.06));
   assert.equal(applied.gstInr, Math.round(applied.convenienceFeeInr * 0.18));
 });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatInr, getMinTierPrice, type PulseEvent } from "@pulsepass/shared";
+import { formatInr, getMinTierPrice, type PulseEvent } from "@nightlifez/shared";
 
 interface HeroCarouselProps {
   events: PulseEvent[];

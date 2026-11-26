@@ -1,0 +1,16 @@
+{
+  "name": "NIGHTLIFEZ",
+  "short_name": "NIGHTLIFEZ",
+  "description": "Discover. Connect. Experience. Live events, movies, dining & play.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F6F7FB",
+  "theme_color": "#5B3DF5",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

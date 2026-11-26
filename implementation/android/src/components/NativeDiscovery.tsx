@@ -5,10 +5,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   formatInr,
   getMinTierPrice,
-  PULSEPASS_TOKENS,
+  NIGHTLIFEZ_TOKENS,
   SEED_CITIES,
   type PulseEvent
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 
 interface NativeTopBarProps {
   selectedCity: string;
@@ -33,7 +33,7 @@ export function NativeTopBar({ selectedCity, onSelectCity }: NativeTopBarProps) 
           style={styles.cityTrigger}
         >
           <View style={styles.brandDot}>
-            <Text style={styles.brandDotText}>P</Text>
+            <Text style={styles.brandDotText}>N</Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.cityTitle} numberOfLines={1}>
@@ -174,9 +174,9 @@ export function NativeEventCard({
 
 const styles = StyleSheet.create({
   safeTop: {
-    backgroundColor: PULSEPASS_TOKENS.colors.surface,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: PULSEPASS_TOKENS.colors.border
+    borderBottomColor: NIGHTLIFEZ_TOKENS.colors.border
   },
   topBar: {
     flexDirection: "row",
@@ -191,32 +191,32 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     alignItems: "center",
     justifyContent: "center"
   },
   brandDotText: { color: "#FFFFFF", fontWeight: "800", fontSize: 15 },
-  cityTitle: { fontSize: 14, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  citySub: { fontSize: 11, color: PULSEPASS_TOKENS.colors.inkMuted },
+  cityTitle: { fontSize: 14, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  citySub: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   topActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   iconPill: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
-    backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6
   },
-  iconPillText: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
+  iconPillText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   avatarBtn: {
     width: 30,
     height: 30,
     borderRadius: 999,
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
   },
-  avatarText: { fontSize: 12, fontWeight: "800", color: PULSEPASS_TOKENS.colors.primary },
+  avatarText: { fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.primary },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   modalSheet: {
     backgroundColor: "#FFFFFF",
@@ -231,26 +231,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6
   },
-  modalTitle: { fontSize: 17, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  modalClose: { fontSize: 13, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  modalClose: { fontSize: 13, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
   cityOption: {
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
   cityOptionActive: {
-    borderColor: PULSEPASS_TOKENS.colors.primary,
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft
   },
-  cityOptionTitle: { fontSize: 14, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
-  cityOptionSub: { fontSize: 11, color: PULSEPASS_TOKENS.colors.inkMuted },
+  cityOptionTitle: { fontSize: 14, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  cityOptionSub: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   eventCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
   posterArea: {
     height: 142,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3
   },
   badgePrimary: {
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3
@@ -283,26 +283,26 @@ const styles = StyleSheet.create({
   badgeText: { color: "#FFFFFF", fontSize: 9, fontWeight: "800" },
   posterHeadline: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
   cardBody: { padding: 12, gap: 4 },
-  cardDate: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  cardVenue: { fontSize: 12, color: PULSEPASS_TOKENS.colors.inkMuted },
+  cardDate: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  cardTitle: { fontSize: 15, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  cardVenue: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   offerChip: {
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
     marginTop: 2
   },
-  offerChipText: { fontSize: 10, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary },
+  offerChipText: { fontSize: 10, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: PULSEPASS_TOKENS.colors.border,
+    borderTopColor: NIGHTLIFEZ_TOKENS.colors.border,
     paddingTop: 8,
     marginTop: 4
   },
-  priceText: { fontSize: 14, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  bookLink: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary }
+  priceText: { fontSize: 14, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  bookLink: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary }
 });

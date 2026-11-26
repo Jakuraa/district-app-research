@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@pulsepass/shared"]
+  transpilePackages: ["@nightlifez/shared"]
 };
 
 export default nextConfig;

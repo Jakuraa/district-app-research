@@ -18,7 +18,7 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="search"
-          options={{ headerShown: true, title: "Search PulsePass" }}
+          options={{ headerShown: true, title: "Search NIGHTLIFEZ" }}
         />
         <Stack.Screen
           name="bookings"

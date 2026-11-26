@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { formatInr, PULSEPASS_TOKENS, SEED_RESTAURANTS } from "@pulsepass/shared";
+import { formatInr, NIGHTLIFEZ_TOKENS, SEED_RESTAURANTS } from "@nightlifez/shared";
 import { NativeTopBar } from "../../src/components/NativeDiscovery";
 
 export default function DiningScreen() {
@@ -72,65 +72,65 @@ export default function DiningScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  root: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   content: { padding: 16, gap: 12, paddingBottom: 32 },
   demoTag: {
     alignSelf: "flex-start",
-    backgroundColor: PULSEPASS_TOKENS.colors.availableBg,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.availableBg,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4
   },
-  demoTagText: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.available },
-  title: { fontSize: 22, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  demoTagText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.available },
+  title: { fontSize: 22, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   chips: { gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7
   },
   chipActive: {
-    borderColor: PULSEPASS_TOKENS.colors.primary,
-    backgroundColor: PULSEPASS_TOKENS.colors.primary
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary
   },
-  chipText: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
+  chipText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   chipTextActive: { color: "#FFFFFF" },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     gap: 6
   },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  cardName: { fontSize: 16, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink, flex: 1 },
+  cardName: { fontSize: 16, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink, flex: 1 },
   ratingBadge: {
-    backgroundColor: PULSEPASS_TOKENS.colors.available,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.available,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3
   },
   ratingText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
-  meta: { fontSize: 12, color: PULSEPASS_TOKENS.colors.inkMuted },
-  locality: { fontSize: 11, color: PULSEPASS_TOKENS.colors.inkMuted },
+  meta: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  locality: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   offerBar: {
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6
   },
-  offerText: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary },
+  offerText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
   slotRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   slotPill: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.primary,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5
   },
-  slotText: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary }
+  slotText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary }
 });

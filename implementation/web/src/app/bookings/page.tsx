@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatInr, SEED_CITIES, type BookingRecord } from "@pulsepass/shared";
+import { formatInr, SEED_CITIES, type BookingRecord } from "@nightlifez/shared";
 import { AppHeader } from "@/components/AppHeader";
 
 function DemoQrGraphic({ code }: { code: string }) {

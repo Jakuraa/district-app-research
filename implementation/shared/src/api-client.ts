@@ -16,7 +16,7 @@ export interface VenueDetailResponse {
   upcomingEvents: PulseEvent[];
 }
 
-export class PulsePassClient {
+export class NIGHTLIFEZClient {
   private baseUrl: string;
 
   constructor(baseUrl: string = "") {

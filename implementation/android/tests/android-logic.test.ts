@@ -11,13 +11,13 @@ test("Android Expo app configuration defines independent package id and EAS APK/
   const appJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../app.json"), "utf8"));
   const easJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../eas.json"), "utf8"));
 
-  assert.equal(appJson.expo.android.package, "com.pulsepass.events");
+  assert.equal(appJson.expo.android.package, "com.jakuraa.nightlifez");
   assert.equal(appJson.expo.android.edgeToEdgeEnabled, true);
   assert.equal(easJson.build.preview.android.buildType, "apk");
   assert.equal(easJson.build.production.android.buildType, "app-bundle");
 });
 
-test("Android booking screen shares deterministic pricing rules from @pulsepass/shared", () => {
+test("Android booking screen shares deterministic pricing rules from @nightlifez/shared", () => {
   const event = SEED_EVENTS[3]; // Tides & Tempo Goa
   const breakdown = calculatePriceBreakdown({
     tiers: event.tiers,

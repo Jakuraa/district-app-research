@@ -26,7 +26,7 @@ async function run() {
 
     // 1. Homepage -> Events -> Event Detail -> Book flow
     await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.getByText("PulsePass").first().waitFor();
+    await page.getByText("NIGHTLIFEZ").first().waitFor();
     await page.getByRole("link", { name: "Events" }).first().click();
     await page.waitForURL("**/events**");
 
@@ -40,12 +40,12 @@ async function run() {
     await page.getByRole("button", { name: "2", exact: true }).click();
     await page.getByRole("button", { name: "Proceed", exact: true }).click();
 
-    // Apply offer PULSE15
-    await page.getByRole("button", { name: /PULSE15/i }).click();
+    // Apply offer NIGHT15
+    await page.getByRole("button", { name: /NIGHT15/i }).click();
 
     // Submit demo reservation
     await page.getByPlaceholder("Asha Rao").fill("Playwright QA User");
-    await page.getByPlaceholder("asha@example.com").fill("qa@pulsepass.test");
+    await page.getByPlaceholder("asha@example.com").fill("qa@nightlifez.test");
     await page.getByRole("button", { name: /Confirm Demo Reservation/i }).click();
 
     await page.getByText(/DEMO RESERVATION CONFIRMED/i).waitFor({ timeout: 10000 });

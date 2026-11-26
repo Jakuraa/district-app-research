@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatInr, getMinTierPrice, getTierAvailability, type PulseEvent } from "@pulsepass/shared";
+import { formatInr, getMinTierPrice, getTierAvailability, type PulseEvent } from "@nightlifez/shared";
 
 interface EventCardProps {
   event: PulseEvent;

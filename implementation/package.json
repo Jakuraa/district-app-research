@@ -1,5 +1,5 @@
 {
-  "name": "pulsepass-monorepo",
+  "name": "nightlifez-monorepo",
   "private": true,
   "scripts": {
     "test:shared": "npm --prefix shared test",

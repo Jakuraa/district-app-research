@@ -1,15 +1,15 @@
 import { Tabs } from "expo-router";
-import { PULSEPASS_TOKENS } from "@pulsepass/shared";
+import { NIGHTLIFEZ_TOKENS } from "@nightlifez/shared";
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: PULSEPASS_TOKENS.colors.primary,
-        tabBarInactiveTintColor: PULSEPASS_TOKENS.colors.inkMuted,
+        tabBarActiveTintColor: NIGHTLIFEZ_TOKENS.colors.primary,
+        tabBarInactiveTintColor: NIGHTLIFEZ_TOKENS.colors.inkMuted,
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
-          borderTopColor: PULSEPASS_TOKENS.colors.border
+          borderTopColor: NIGHTLIFEZ_TOKENS.colors.border
         },
         headerShown: false
       }}

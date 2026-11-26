@@ -24,7 +24,7 @@ import {
   type Restaurant,
   type TicketTier,
   type Venue
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 import { getPool } from "./db.ts";
 
 // In-memory store used strictly when DATABASE_URL is not configured (e.g. offline unit tests)
@@ -487,7 +487,7 @@ export async function createDemoBooking(rawInput: CreateBookingInput): Promise<B
   }
 
   const bookingId = `bkg_${crypto.randomUUID().slice(0, 12)}`;
-  const refCode = `PP-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+  const refCode = `NLZ-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 
   const pool = getPool();
   if (!pool) {

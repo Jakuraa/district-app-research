@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DISCOVERY_CATEGORIES, SEED_CITIES, type DemoUserProfile } from "@pulsepass/shared";
+import { DISCOVERY_CATEGORIES, SEED_CITIES, type DemoUserProfile } from "@nightlifez/shared";
 import { AppHeader } from "@/components/AppHeader";
 
-const STORAGE_KEY = "pulsepass_demo_profile_v1";
+const STORAGE_KEY = "nightlifez_demo_profile_v1";
 
 export default function AccountPage() {
   const [profile, setProfile] = useState<DemoUserProfile>({
@@ -173,7 +173,7 @@ export default function AccountPage() {
           <div className="rounded-2xl border border-[#e4e6f0] bg-white p-5">
             <h2 className="text-base font-extrabold text-[#111319]">Support & Help</h2>
             <p className="mt-1 text-xs text-[#5e6473]">
-              PulsePass is running in clean-room demo mode. Demo bookings can be cancelled anytime to restore tier inventory.
+              NIGHTLIFEZ is running in clean-room demo mode. Demo bookings can be cancelled anytime to restore tier inventory.
             </p>
           </div>
         </div>

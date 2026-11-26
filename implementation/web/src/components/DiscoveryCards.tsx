@@ -7,7 +7,7 @@ import {
   type Movie,
   type Restaurant,
   type Venue
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 
 export function SectionHeader({
   title,

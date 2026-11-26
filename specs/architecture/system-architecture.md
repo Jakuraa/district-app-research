@@ -2,9 +2,9 @@
 
 ## Monorepo Layout (`implementation/`)
 
-- `implementation/shared`: Pure TypeScript package (`@pulsepass/shared`) containing domain types, Zod validation schemas, deterministic ticket pricing & offer engine, sales phase state helpers, design tokens, and synthetic seed catalog.
+- `implementation/shared`: Pure TypeScript package (`@nightlifez/shared`) containing domain types, Zod validation schemas, deterministic ticket pricing & offer engine, sales phase state helpers, design tokens, and synthetic seed catalog.
 - `implementation/web`: Next.js App Router + TypeScript + Tailwind CSS responsive web application + REST API routes (`/api/health`, `/api/events`, `/api/events/[slug]`, `/api/venues/[slug]`, `/api/bookings`, `/api/bookings/[id]/cancel`) backed by PostgreSQL (Neon Free) with safe synthetic fallback when `DATABASE_URL` is unset in local unit tests.
-- `implementation/android`: React Native + Expo + Expo Router TypeScript native Android application sharing `@pulsepass/shared`, configured with EAS Build (`eas.json`) for Android APK (preview/testing) and AAB (production store release when authorized).
+- `implementation/android`: React Native + Expo + Expo Router TypeScript native Android application sharing `@nightlifez/shared`, configured with EAS Build (`eas.json`) for Android APK (preview/testing) and AAB (production store release when authorized).
 
 ## PostgreSQL Schema (`implementation/web/db/schema.sql`)
 

@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { formatInr, getMinTierPrice, PULSEPASS_TOKENS, SEED_EVENTS } from "@pulsepass/shared";
+import { formatInr, getMinTierPrice, NIGHTLIFEZ_TOKENS, SEED_EVENTS } from "@nightlifez/shared";
 
 export default function EventDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -78,7 +78,7 @@ export default function EventDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  container: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   scroll: { paddingBottom: 90 },
   hero: { padding: 20, gap: 6 },
   phaseBadge: { color: "#E0E7FF", fontSize: 11, fontWeight: "700" },
@@ -91,36 +91,36 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     gap: 8
   },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
-  body: { fontSize: 13, color: PULSEPASS_TOKENS.colors.inkMuted, lineHeight: 19 },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  body: { fontSize: 13, color: NIGHTLIFEZ_TOKENS.colors.inkMuted, lineHeight: 19 },
   timelineRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
-  timelineLabel: { fontSize: 13, fontWeight: "600", color: PULSEPASS_TOKENS.colors.ink },
-  timelineState: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary },
+  timelineLabel: { fontSize: 13, fontWeight: "600", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  timelineState: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
   offerCard: {
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft,
     borderRadius: 10,
     padding: 10
   },
-  offerTitle: { fontSize: 13, fontWeight: "700", color: PULSEPASS_TOKENS.colors.primary },
-  offerDesc: { fontSize: 12, color: PULSEPASS_TOKENS.colors.inkMuted, marginTop: 2 },
-  bullet: { fontSize: 13, color: PULSEPASS_TOKENS.colors.inkMuted },
+  offerTitle: { fontSize: 13, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  offerDesc: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted, marginTop: 2 },
+  bullet: { fontSize: 13, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   stickyBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: PULSEPASS_TOKENS.colors.border,
+    borderTopColor: NIGHTLIFEZ_TOKENS.colors.border,
     paddingHorizontal: 16,
     paddingVertical: 12
   },
-  stickyPrice: { fontSize: 17, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  stickyOffers: { fontSize: 11, color: PULSEPASS_TOKENS.colors.inkMuted },
+  stickyPrice: { fontSize: 17, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  stickyOffers: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   bookButton: {
-    backgroundColor: PULSEPASS_TOKENS.colors.ink,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.ink,
     borderRadius: 999,
     paddingHorizontal: 20,
     paddingVertical: 11

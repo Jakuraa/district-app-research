@@ -3,7 +3,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ArtistCard, EmptyState } from "@/components/DiscoveryCards";
 import { EventCard } from "@/components/EventCard";
 import { listArtists, listCitiesAndEvents } from "@/lib/repository";
-import type { EventQueryInput } from "@pulsepass/shared";
+import type { EventQueryInput } from "@nightlifez/shared";
 
 export const dynamic = "force-dynamic";
 

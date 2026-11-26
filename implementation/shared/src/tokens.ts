@@ -1,6 +1,6 @@
-export const PULSEPASS_TOKENS = {
-  brandName: "PulsePass",
-  tagline: "Go out better — live events, movies, dining & play",
+export const NIGHTLIFEZ_TOKENS = {
+  brandName: "NIGHTLIFEZ",
+  tagline: "Discover. Connect. Experience.",
   colors: {
     primary: "#5B3DF5",
     primaryDark: "#4328D6",

@@ -184,7 +184,7 @@ export const SEED_EVENTS: PulseEvent[] = [
       { id: "ses-sol-sat", label: "Sat, 19 Dec · 4:00 PM (Main Day)", startsAt: "2026-12-19T16:00:00+05:30", status: "FAST_FILLING" },
       { id: "ses-sol-sun", label: "Sun, 20 Dec · 4:00 PM (Encore Set)", startsAt: "2026-12-20T16:00:00+05:30", status: "AVAILABLE" }
     ],
-    organizerName: "PulsePass Originals",
+    organizerName: "NIGHTLIFEZ Originals",
     organizerRating: 92,
     organizerTenure: "2 years hosting",
     summary:
@@ -248,10 +248,10 @@ export const SEED_EVENTS: PulseEvent[] = [
     offers: [
       {
         id: "off-sol-15",
-        code: "PULSE15",
+        code: "NIGHT15",
         title: "Get 15% OFF up to ₹400",
         description: "Valid on minimum order value of ₹2,500.",
-        eligibility: "All PulsePass users",
+        eligibility: "All NIGHTLIFEZ users",
         kind: "PERCENT_CAP",
         discountValue: 15,
         maxDiscountInr: 400,
@@ -881,7 +881,7 @@ export const SEED_RESTAURANTS: Restaurant[] = [
     budgetForTwoInr: 1100,
     rating: 4.7,
     distanceKm: 1.8,
-    offerText: "10% OFF via PulsePass Dining",
+    offerText: "10% OFF via NIGHTLIFEZ Dining",
     artworkUrl: "/art/rest-kovai.svg",
     highlights: ["Wood-fired specialties", "Family seating", "Filter coffee bar"],
     availableSlots: ["1:00 PM", "7:00 PM", "8:00 PM", "8:45 PM"],

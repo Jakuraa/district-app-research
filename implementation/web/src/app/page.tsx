@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DISCOVERY_CATEGORIES, formatInr } from "@pulsepass/shared";
+import { DISCOVERY_CATEGORIES, formatInr } from "@nightlifez/shared";
 import { AppHeader } from "@/components/AppHeader";
 import {
   ArtistCard,

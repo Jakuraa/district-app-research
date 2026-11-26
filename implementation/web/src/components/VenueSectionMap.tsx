@@ -1,6 +1,6 @@
 "use client";
 
-import { getTierAvailability, type TicketTier, type VenueSection } from "@pulsepass/shared";
+import { getTierAvailability, type TicketTier, type VenueSection } from "@nightlifez/shared";
 
 interface VenueSectionMapProps {
   sections: VenueSection[];

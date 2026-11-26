@@ -5,12 +5,12 @@ import {
   DISCOVERY_CATEGORIES,
   formatInr,
   getMinTierPrice,
-  PULSEPASS_TOKENS,
+  NIGHTLIFEZ_TOKENS,
   SEED_ARTISTS,
   SEED_COLLECTIONS,
   SEED_EVENTS,
   SEED_VENUES
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 import { NativeEventCard, NativeTopBar } from "../../src/components/NativeDiscovery";
 
 export default function ForYouScreen() {
@@ -172,7 +172,7 @@ export default function ForYouScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  root: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   container: { flex: 1 },
   content: { padding: 16, gap: 16, paddingBottom: 32 },
   heroCard: { borderRadius: 22, overflow: "hidden" },
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8
   },
   heroBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  sectionHeading: { fontSize: 18, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  sectionHeading: { fontSize: 18, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   rail: { gap: 12 },
   stackList: { gap: 12 },
   artistCard: {
@@ -205,19 +205,19 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
   artistAvatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     alignItems: "center",
     justifyContent: "center"
   },
   artistInitial: { color: "#FFFFFF", fontWeight: "800", fontSize: 16 },
-  artistName: { marginTop: 8, fontSize: 12, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  artistRole: { fontSize: 10, color: PULSEPASS_TOKENS.colors.inkMuted },
+  artistName: { marginTop: 8, fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  artistRole: { fontSize: 10, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   catGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   catTile: {
     width: "31%",
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
   catIcon: {
     width: 34,
@@ -237,19 +237,19 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   catIconText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
-  catLabel: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
+  catLabel: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   venueCard: {
     width: 220,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     gap: 4
   },
-  venueName: { fontSize: 14, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  venueSub: { fontSize: 11, color: PULSEPASS_TOKENS.colors.inkMuted },
-  venueStatus: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.available },
+  venueName: { fontSize: 14, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  venueSub: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  venueStatus: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.available },
   collectionCard: {
     width: 240,
     backgroundColor: "#111319",

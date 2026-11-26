@@ -62,7 +62,7 @@ export default async function SearchPage({
             name="q"
             defaultValue={q}
             placeholder="Search events, movies, restaurants, activities, or artists..."
-            aria-label="Search PulsePass"
+            aria-label="Search NIGHTLIFEZ"
             className="min-w-0 flex-1 rounded-2xl border border-[#e4e6f0] bg-white px-4 py-3 text-sm outline-none focus:border-[#5b3df5]"
           />
           <select

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { PULSEPASS_TOKENS } from "@pulsepass/shared";
+import { NIGHTLIFEZ_TOKENS } from "@nightlifez/shared";
 
 export default function AndroidBookingsWalletScreen() {
   const router = useRouter();
@@ -49,21 +49,21 @@ export default function AndroidBookingsWalletScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  container: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   content: { padding: 16, gap: 14 },
-  title: { fontSize: 22, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  subtitle: { fontSize: 12, color: PULSEPASS_TOKENS.colors.inkMuted },
+  title: { fontSize: 22, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  subtitle: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   tabs: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     padding: 4,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
   tabBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 999 },
-  tabBtnActive: { backgroundColor: PULSEPASS_TOKENS.colors.primary },
-  tabText: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.inkMuted },
+  tabBtnActive: { backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary },
+  tabText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   tabTextActive: { color: "#FFFFFF" },
   emptyCard: {
     backgroundColor: "#FFFFFF",
@@ -72,13 +72,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
-  emptyTitle: { fontSize: 16, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  emptyBody: { fontSize: 12, color: PULSEPASS_TOKENS.colors.inkMuted, textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  emptyBody: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted, textAlign: "center" },
   ctaBtn: {
     marginTop: 8,
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 10

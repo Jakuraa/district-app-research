@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatInr, getMinTierPrice } from "@pulsepass/shared";
+import { formatInr, getMinTierPrice } from "@nightlifez/shared";
 import { AppHeader } from "@/components/AppHeader";
 import { getEventDetail, listCitiesAndEvents } from "@/lib/repository";
 

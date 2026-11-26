@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { getMinTierPrice, PULSEPASS_TOKENS, SEED_EVENTS } from "@pulsepass/shared";
+import { getMinTierPrice, NIGHTLIFEZ_TOKENS, SEED_EVENTS } from "@nightlifez/shared";
 import { NativeEventCard, NativeTopBar } from "../../src/components/NativeDiscovery";
 
 export default function EventsTabScreen() {
@@ -64,37 +64,37 @@ export default function EventsTabScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  root: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   content: { padding: 16, gap: 12, paddingBottom: 32 },
-  title: { fontSize: 22, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  title: { fontSize: 22, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   chips: { gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7
   },
   chipActive: {
-    borderColor: PULSEPASS_TOKENS.colors.primary,
-    backgroundColor: PULSEPASS_TOKENS.colors.primary
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary
   },
-  chipText: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
+  chipText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   chipTextActive: { color: "#FFFFFF" },
   sortRow: { flexDirection: "row", gap: 8 },
   sortPill: {
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     backgroundColor: "#FFFFFF",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6
   },
   sortPillActive: {
-    borderColor: PULSEPASS_TOKENS.colors.primary,
-    backgroundColor: PULSEPASS_TOKENS.colors.primarySoft
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primarySoft
   },
-  sortText: { fontSize: 11, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
+  sortText: { fontSize: 11, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   list: { gap: 12 }
 });

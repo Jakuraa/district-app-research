@@ -1,4 +1,4 @@
-import type { PaymentState } from "@pulsepass/shared";
+import type { PaymentState } from "@nightlifez/shared";
 
 export interface DemoPaymentAttemptResult {
   state: PaymentState;

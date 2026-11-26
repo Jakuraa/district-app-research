@@ -1,5 +1,5 @@
 {
-  "name": "@pulsepass/web",
+  "name": "@nightlifez/web",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -14,7 +14,7 @@
     "db:migrate": "node db/migrate-and-seed.mjs"
   },
   "dependencies": {
-    "@pulsepass/shared": "file:../shared",
+    "@nightlifez/shared": "file:../shared",
     "next": "^15.5.14",
     "pg": "^8.13.3",
     "react": "19.0.0",

@@ -30,6 +30,6 @@
 - Authenticated checkout price breakdown, convenience fee calculation, promo code validation API, payment gateway handoff, and post-purchase ticket wallet/QR rendering.
 - Native Android app screen transitions, hardware back behaviour, and bottom-sheet gestures (awaits connected Android device).
 
-## Original PulsePass Adaptation Proposal
+## Original NIGHTLIFEZ Adaptation Proposal
 
 Build an independent, high-clarity 4-stage attendee funnel (`Discover` -> `Event Detail & Offers` -> `Tier/Section & Quantity` -> `Review & Demo Reservation`) with real PostgreSQL-backed inventory, sales-phase state machines, offer eligibility rules, and deterministic fee calculations—without copying District branding, copy, or assets.

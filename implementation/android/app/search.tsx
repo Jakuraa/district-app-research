@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
-  PULSEPASS_TOKENS,
+  NIGHTLIFEZ_TOKENS,
   SEED_ACTIVITIES,
   SEED_EVENTS,
   SEED_MOVIES,
   SEED_RESTAURANTS
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 import { NativeEventCard } from "../src/components/NativeDiscovery";
 
 export default function AndroidSearchScreen() {
@@ -106,13 +106,13 @@ export default function AndroidSearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  container: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   content: { padding: 16, gap: 14, paddingBottom: 32 },
   input: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontSize: 14
@@ -121,21 +121,21 @@ const styles = StyleSheet.create({
   chip: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6
   },
-  chipText: { fontSize: 12, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
+  chipText: { fontSize: 12, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
   section: { gap: 10 },
-  heading: { fontSize: 16, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  heading: { fontSize: 16, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   simpleCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
-  simpleTitle: { fontSize: 14, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  simpleMeta: { fontSize: 12, color: PULSEPASS_TOKENS.colors.inkMuted }
+  simpleTitle: { fontSize: 14, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  simpleMeta: { fontSize: 12, color: NIGHTLIFEZ_TOKENS.colors.inkMuted }
 });

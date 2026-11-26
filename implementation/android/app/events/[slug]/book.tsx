@@ -5,10 +5,10 @@ import {
   calculatePriceBreakdown,
   formatInr,
   getTierAvailability,
-  PULSEPASS_TOKENS,
+  NIGHTLIFEZ_TOKENS,
   SEED_EVENTS,
   SEED_VENUES
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 
 export default function AndroidBookScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -154,7 +154,7 @@ export default function AndroidBookScreen() {
       ) : (
         <Pressable
           disabled={breakdown.totalQuantity === 0}
-          onPress={() => setReservedRef("PP-ANDROID-DEMO")}
+          onPress={() => setReservedRef("NLZ-ANDROID-DEMO")}
           style={[styles.confirmBtn, breakdown.totalQuantity === 0 && { opacity: 0.45 }]}
         >
           <Text style={styles.confirmText}>Reserve Demo Pass</Text>
@@ -165,35 +165,35 @@ export default function AndroidBookScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted },
+  container: { flex: 1, backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted },
   content: { padding: 16, gap: 12, paddingBottom: 32 },
-  heading: { fontSize: 18, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  heading: { fontSize: 18, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   gateCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     gap: 8
   },
-  gateEyebrow: { fontSize: 10, fontWeight: "800", color: PULSEPASS_TOKENS.colors.primary },
-  gateTitle: { fontSize: 16, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  gateEyebrow: { fontSize: 10, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  gateTitle: { fontSize: 16, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   qtyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   qtyCell: {
     width: "30%",
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center"
   },
   qtyCellActive: {
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
-    borderColor: PULSEPASS_TOKENS.colors.primary
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.primary
   },
-  qtyCellText: { fontSize: 14, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  qtyCellText: { fontSize: 14, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   proceedBtn: {
-    backgroundColor: PULSEPASS_TOKENS.colors.ink,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.ink,
     borderRadius: 10,
     paddingVertical: 11,
     alignItems: "center",
@@ -205,19 +205,19 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     gap: 8
   },
-  mapTitle: { fontSize: 12, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
+  mapTitle: { fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
   mapSections: { gap: 6 },
   mapZone: {
     borderWidth: 1.5,
     borderRadius: 10,
     padding: 8,
-    backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted
   },
-  mapZoneName: { fontSize: 12, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink },
-  mapZoneSub: { fontSize: 10, color: PULSEPASS_TOKENS.colors.inkMuted },
+  mapZoneName: { fontSize: 12, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  mapZoneSub: { fontSize: 10, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   tierCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -225,17 +225,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border
   },
-  tierName: { fontSize: 15, fontWeight: "700", color: PULSEPASS_TOKENS.colors.ink },
-  tierPrice: { fontSize: 14, fontWeight: "800", color: PULSEPASS_TOKENS.colors.primary },
-  tierStatus: { fontSize: 11, color: PULSEPASS_TOKENS.colors.inkMuted },
+  tierName: { fontSize: 15, fontWeight: "700", color: NIGHTLIFEZ_TOKENS.colors.ink },
+  tierPrice: { fontSize: 14, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.primary },
+  tierStatus: { fontSize: 11, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
   stepper: { flexDirection: "row", alignItems: "center", gap: 10 },
   stepBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: PULSEPASS_TOKENS.colors.surfaceMuted,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -247,12 +247,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     paddingHorizontal: 12,
     paddingVertical: 8
   },
   applyBtn: {
-    backgroundColor: PULSEPASS_TOKENS.colors.ink,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.ink,
     borderRadius: 10,
     paddingHorizontal: 16,
     justifyContent: "center"
@@ -263,13 +263,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: PULSEPASS_TOKENS.colors.border,
+    borderColor: NIGHTLIFEZ_TOKENS.colors.border,
     gap: 4
   },
-  summaryRow: { fontSize: 13, color: PULSEPASS_TOKENS.colors.inkMuted },
-  totalRow: { fontSize: 16, fontWeight: "800", color: PULSEPASS_TOKENS.colors.ink, marginTop: 4 },
+  summaryRow: { fontSize: 13, color: NIGHTLIFEZ_TOKENS.colors.inkMuted },
+  totalRow: { fontSize: 16, fontWeight: "800", color: NIGHTLIFEZ_TOKENS.colors.ink, marginTop: 4 },
   confirmBtn: {
-    backgroundColor: PULSEPASS_TOKENS.colors.primary,
+    backgroundColor: NIGHTLIFEZ_TOKENS.colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center"
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 14,
     fontWeight: "800",
-    color: PULSEPASS_TOKENS.colors.available,
+    color: NIGHTLIFEZ_TOKENS.colors.available,
     paddingVertical: 12
   }
 });

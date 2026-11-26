@@ -10,7 +10,7 @@ import {
   type PaymentState,
   type PulseEvent,
   type Venue
-} from "@pulsepass/shared";
+} from "@nightlifez/shared";
 import { VenueSectionMap } from "./VenueSectionMap";
 
 interface BookingFlowProps {
