@@ -22,7 +22,17 @@
       "edgeToEdgeEnabled": true
     },
     "plugins": [
-      "expo-router"
-    ]
+      "expo-router",
+      "expo-asset"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "898f278f-534b-46e9-9989-f39c5b90d2b3"
+      }
+    },
+    "owner": "jakuraa"
   }
 }
