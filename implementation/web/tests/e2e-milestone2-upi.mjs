@@ -80,10 +80,15 @@ async function runDesktopFlow(browser) {
   await page.getByText(new RegExp(`Payment verified for ${referenceCode}`, "i")).waitFor({ timeout: 10000 });
   await card.getByText("CONFIRMED_DEMO").waitFor({ timeout: 10000 });
 
-  // 5. Attendee sees confirmed booking & issued pass on /bookings
-  await attPage.goto(`${BASE_URL}/bookings?email=${encodeURIComponent("upi.e2e@nightlifez.test")}`, {
-    waitUntil: "networkidle"
-  });
+  // 5. Unauthenticated ?email= wallet lookup must be rejected (401), while signed walletToken link works
+  const unauthRes = await attPage.request.get(
+    `${BASE_URL}/api/bookings?email=${encodeURIComponent("upi.e2e@nightlifez.test")}`
+  );
+  assert.equal(unauthRes.status(), 401, "Unauthenticated email-based wallet lookup must return 401");
+
+  const walletHref = await attPage.getByTestId("view-wallet-link").getAttribute("href");
+  assert.ok(walletHref?.includes("walletToken="), "Expected signed walletToken link for guest booking");
+  await attPage.goto(`${BASE_URL}${walletHref}`, { waitUntil: "networkidle" });
   await attPage.getByText(referenceCode).waitFor({ timeout: 10000 });
   await attPage.getByText(/CONFIRMED/i).first().waitFor({ timeout: 5000 });
 

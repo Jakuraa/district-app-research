@@ -7,13 +7,22 @@ import { buildUpiPaymentUri, hasPermission } from "@nightlifez/shared";
 import { getMemoryStore } from "../src/lib/memoryStore.ts";
 import {
   createUpiClaimToken,
+  createWalletAccessToken,
   expireStaleUpiBookings,
+  getClaimTokenSecret,
   getPublicOrganiserPaymentInfo,
   listOrganiserPaymentVerifications,
   submitAttendeeUpiClaim,
   upsertOrganiserPaymentProfile,
-  verifyOrganiserUpiPayment
+  verifyOrganiserUpiPayment,
+  verifyUpiClaimToken,
+  verifyWalletAccessToken
 } from "../src/lib/organiserPaymentService.ts";
+import {
+  checkSharedRateLimit,
+  getTrustedClientIp,
+  resetMemoryRateLimitsForTests
+} from "../src/lib/rateLimit.ts";
 import { getOrganiserPaymentAdapter, LIVE_GATEWAY_ENABLED } from "../src/lib/paymentAdapter.ts";
 import { createDemoBooking, listCitiesAndEvents } from "../src/lib/repository.ts";
 
@@ -357,4 +366,59 @@ test("guest UPI payment claims require a valid booking-specific signed claimToke
       orgOwnerActor
     );
   }
+});
+
+test("getClaimTokenSecret fails closed in production when missing or weak, and tokens are purpose/booking bound", () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevVercelEnv = process.env.VERCEL_ENV;
+  const prevSecret = process.env.NIGHTLIFEZ_AUTH_SECRET;
+  try {
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).VERCEL_ENV = "production";
+    delete process.env.NIGHTLIFEZ_AUTH_SECRET;
+    assert.throws(() => getClaimTokenSecret(), /required in production/i);
+
+    process.env.NIGHTLIFEZ_AUTH_SECRET = "too-short-secret";
+    assert.throws(() => getClaimTokenSecret(), /at least 32 bytes/i);
+
+    process.env.NIGHTLIFEZ_AUTH_SECRET = "0123456789abcdef0123456789abcdef";
+    assert.equal(getClaimTokenSecret(), "0123456789abcdef0123456789abcdef");
+
+    // Purpose & cross-booking isolation
+    const claimTok = createUpiClaimToken("bkg_1", "NLZ-111");
+    assert.equal(verifyUpiClaimToken(claimTok, "bkg_1", "NLZ-111"), true);
+    assert.equal(verifyUpiClaimToken(claimTok, "bkg_2", "NLZ-111"), false);
+    assert.equal(verifyWalletAccessToken(claimTok), null);
+
+    const walletTok = createWalletAccessToken("bkg_1", "NLZ-111");
+    assert.deepEqual(verifyWalletAccessToken(walletTok), { bookingId: "bkg_1", referenceCode: "NLZ-111" });
+    assert.equal(verifyWalletAccessToken(`${walletTok}tamper`), null);
+    assert.equal(verifyUpiClaimToken(walletTok, "bkg_1", "NLZ-111"), false);
+  } finally {
+    (process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+    (process.env as Record<string, string | undefined>).VERCEL_ENV = prevVercelEnv;
+    if (prevSecret === undefined) delete process.env.NIGHTLIFEZ_AUTH_SECRET;
+    else process.env.NIGHTLIFEZ_AUTH_SECRET = prevSecret;
+  }
+});
+
+test("shared rate limiter enforces concurrent limits, window expiry, and ignores spoofed x-forwarded-for", async () => {
+  resetMemoryRateLimitsForTests();
+  const reqSpoofed = new Request("http://localhost/api/bookings", {
+    headers: {
+      "x-forwarded-for": "1.2.3.4",
+      "x-vercel-forwarded-for": "203.0.113.9"
+    }
+  });
+  assert.equal(getTrustedClientIp(reqSpoofed), "203.0.113.9");
+
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () => checkSharedRateLimit("test:concurrent", 3, 50))
+  );
+  assert.equal(results.filter(Boolean).length, 3);
+  assert.equal(results.filter((r) => !r).length, 2);
+
+  // Wait for window expiry
+  await new Promise((r) => setTimeout(r, 65));
+  assert.equal(await checkSharedRateLimit("test:concurrent", 3, 50), true);
 });

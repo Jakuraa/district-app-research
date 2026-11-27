@@ -252,12 +252,25 @@ export async function buildBookingUpiPayload(booking: BookingRecord): Promise<{
   };
 }
 
-function getClaimTokenSecret(): string {
-  return process.env.NIGHTLIFEZ_AUTH_SECRET || process.env.AUTH_SECRET || "nightlifez-dev-upi-claim-secret";
+const EPHEMERAL_DEV_SECRET = crypto.randomBytes(32).toString("hex");
+
+export function getClaimTokenSecret(): string {
+  const configured = (process.env.NIGHTLIFEZ_AUTH_SECRET || process.env.AUTH_SECRET || "").trim();
+  const isProd = process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";
+  if (configured) {
+    if (Buffer.byteLength(configured, "utf8") < 32) {
+      throw new Error("NIGHTLIFEZ_AUTH_SECRET must be at least 32 bytes.");
+    }
+    return configured;
+  }
+  if (isProd) {
+    throw new Error("NIGHTLIFEZ_AUTH_SECRET is required in production.");
+  }
+  return EPHEMERAL_DEV_SECRET;
 }
 
 export function createUpiClaimToken(bookingId: string, referenceCode: string): string {
-  const payload = `${bookingId}:${referenceCode}`;
+  const payload = `upi-claim:${bookingId}:${referenceCode}`;
   return crypto.createHmac("sha256", getClaimTokenSecret()).update(payload).digest("hex");
 }
 
@@ -267,6 +280,31 @@ export function verifyUpiClaimToken(token: string, bookingId: string, referenceC
   const b = Buffer.from(expected, "utf8");
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+}
+
+export function createWalletAccessToken(bookingId: string, referenceCode: string): string {
+  const sig = crypto
+    .createHmac("sha256", getClaimTokenSecret())
+    .update(`wallet-access:${bookingId}:${referenceCode}`)
+    .digest("hex");
+  return `${bookingId}.${referenceCode}.${sig}`;
+}
+
+export function verifyWalletAccessToken(
+  token: string
+): { bookingId: string; referenceCode: string } | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [bookingId, referenceCode, sig] = parts;
+  if (!bookingId || !referenceCode || !sig) return null;
+  const expected = crypto
+    .createHmac("sha256", getClaimTokenSecret())
+    .update(`wallet-access:${bookingId}:${referenceCode}`)
+    .digest("hex");
+  const a = Buffer.from(sig, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return null;
+  return crypto.timingSafeEqual(a, b) ? { bookingId, referenceCode } : null;
 }
 
 export async function submitAttendeeUpiClaim(

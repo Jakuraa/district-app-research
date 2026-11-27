@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/auth";
 import { getSessionFromRequest } from "@/lib/authStore";
 import { submitAttendeeUpiClaim } from "@/lib/organiserPaymentService";
+import { checkSharedRateLimit, getTrustedClientIp } from "@/lib/rateLimit";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const ip = request.headers.get("x-forwarded-for") ?? "local";
+  const ip = getTrustedClientIp(request);
   const { id } = await context.params;
-  if (!checkRateLimit(`upi-claim:${ip}:${id}`, 10, 60_000)) {
+  const session = await getSessionFromRequest(request);
+  const identityKey = session.user?.id ? `user:${session.user.id}` : `ip:${ip}`;
+  const allowed = await checkSharedRateLimit(`upi-claim:${identityKey}:${id}`, 10, 60_000);
+  if (!allowed) {
     return NextResponse.json(
       { error: "Too many payment claim attempts. Please wait a minute." },
       { status: 429 }
     );
   }
-
-  const session = await getSessionFromRequest(request);
 
   try {
     const body = await request.json();

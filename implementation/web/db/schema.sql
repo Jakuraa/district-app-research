@@ -473,3 +473,9 @@ CREATE TABLE IF NOT EXISTS master_categories (
   color TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  reset_at TIMESTAMPTZ NOT NULL
+);

@@ -28,7 +28,7 @@ function DemoQrGraphic({ code, token }: { code: string; token?: string }) {
 }
 
 export default function BookingsPage() {
-  const [emailFilter, setEmailFilter] = useState("");
+  const [walletToken, setWalletToken] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
@@ -36,16 +36,20 @@ export default function BookingsPage() {
   const [refundReasonByBooking, setRefundReasonByBooking] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function loadBookings(email?: string) {
+  async function loadBookings(token?: string | null) {
     setLoading(true);
     try {
-      const qs = email ? `?email=${encodeURIComponent(email)}` : "";
+      const qs = token ? `?walletToken=${encodeURIComponent(token)}` : "";
       const [bRes, rRes] = await Promise.all([
         fetch(`/api/bookings${qs}`),
         fetch("/api/refunds")
       ]);
-      const bJson = await bRes.json();
-      setBookings(bJson.bookings ?? []);
+      if (bRes.ok) {
+        const bJson = await bRes.json();
+        setBookings(bJson.bookings ?? []);
+      } else {
+        setBookings([]);
+      }
       if (rRes.ok) {
         const rJson = await rRes.json();
         setRefunds(rJson.refunds ?? []);
@@ -57,9 +61,9 @@ export default function BookingsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const initialEmail = params.get("email") ?? "";
-    setEmailFilter(initialEmail);
-    void loadBookings(initialEmail || undefined);
+    const token = params.get("walletToken");
+    setWalletToken(token);
+    void loadBookings(token);
   }, []);
 
   async function handleCancel(id: string) {
@@ -71,7 +75,7 @@ export default function BookingsPage() {
       return;
     }
     setNotice("Booking cancelled and inventory restored.");
-    await loadBookings(emailFilter || undefined);
+    await loadBookings(walletToken);
   }
 
   async function handleRequestRefund(bookingId: string) {
@@ -88,7 +92,7 @@ export default function BookingsPage() {
       return;
     }
     setNotice("Refund request submitted for review.");
-    await loadBookings(emailFilter || undefined);
+    await loadBookings(walletToken);
   }
 
   const visibleBookings = bookings.filter((b) =>
@@ -137,27 +141,20 @@ export default function BookingsPage() {
           </div>
         ) : null}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void loadBookings(emailFilter || undefined);
-          }}
-          className="flex gap-2"
-        >
-          <input
-            type="email"
-            value={emailFilter}
-            onChange={(e) => setEmailFilter(e.target.value)}
-            placeholder="Filter by attendee email"
-            className="min-w-0 flex-1 rounded-xl border border-[#e4e6f0] bg-white px-3.5 py-2.5 text-sm"
-          />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#e4e6f0] bg-white px-4 py-3 text-xs text-[#5e6473]">
+          <span>
+            {walletToken
+              ? "Viewing guest booking via secure booking-specific wallet link."
+              : "Showing bookings for your signed-in account."}
+          </span>
           <button
-            type="submit"
-            className="rounded-xl bg-[#111319] px-5 py-2.5 text-sm font-bold text-white"
+            type="button"
+            onClick={() => void loadBookings(walletToken)}
+            className="rounded-xl bg-[#111319] px-4 py-2 text-xs font-bold text-white"
           >
-            Lookup
+            Refresh Wallet
           </button>
-        </form>
+        </div>
 
         {loading ? (
           <div className="rounded-2xl border border-[#e4e6f0] bg-white p-8 text-center text-sm text-[#5e6473]">

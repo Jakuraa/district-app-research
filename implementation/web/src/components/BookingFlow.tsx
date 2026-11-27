@@ -53,6 +53,7 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
   const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<"DEMO_SANDBOX" | "ORGANISER_UPI">("DEMO_SANDBOX");
   const [upiTxRef, setUpiTxRef] = useState("");
   const [upiClaimToken, setUpiClaimToken] = useState<string | null>(null);
+  const [walletToken, setWalletToken] = useState<string | null>(null);
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string | null>(null);
   const [upiClaimSaving, setUpiClaimSaving] = useState(false);
   const [upiClaimMessage, setUpiClaimMessage] = useState<string | null>(null);
@@ -270,6 +271,9 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
           : "CONFIRMED"
       );
       setConfirmedBooking(json.booking);
+      if (typeof json.walletToken === "string") {
+        setWalletToken(json.walletToken);
+      }
       if (typeof json.claimToken === "string") {
         setUpiClaimToken(json.claimToken);
       }
@@ -510,7 +514,8 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
 
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
-            href={`/bookings?email=${encodeURIComponent(confirmedBooking.attendeeEmail)}`}
+            href={walletToken ? `/bookings?walletToken=${encodeURIComponent(walletToken)}` : "/bookings"}
+            data-testid="view-wallet-link"
             className="rounded-xl bg-[#5b3df5] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#4328d6]"
           >
             Open Digital Ticket Wallet
