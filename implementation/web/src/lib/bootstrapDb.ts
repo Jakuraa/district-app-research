@@ -173,6 +173,25 @@ CREATE TABLE IF NOT EXISTS booking_questions (
 
 CREATE INDEX IF NOT EXISTS idx_booking_questions_event ON booking_questions (event_id, sort_order ASC);
 
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  reset_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wallet_recovery_challenges (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL,
+  reference_code TEXT NOT NULL,
+  attendee_email TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS ticket_tiers (
   id TEXT PRIMARY KEY,
   event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
