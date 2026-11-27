@@ -204,9 +204,10 @@ export async function verifyWalletRecoveryChallenge(params: {
     return { ok: true, bookingId: active.bookingId, referenceCode: active.referenceCode };
   }
 
-  await ensureSchemaBootstrapped(pool);
-  const client = await pool.connect();
+  let client;
   try {
+    await ensureSchemaBootstrapped(pool);
+    client = await pool.connect();
     await client.query("BEGIN");
     const res = await client.query(
       `SELECT id, booking_id, reference_code, code_hash, attempts, max_attempts, expires_at, consumed_at
@@ -249,9 +250,9 @@ export async function verifyWalletRecoveryChallenge(params: {
       referenceCode: String(row.reference_code)
     };
   } catch {
-    await client.query("ROLLBACK").catch(() => {});
+    if (client) await client.query("ROLLBACK").catch(() => {});
     return { ok: false, status: 503, error: "Verification temporarily unavailable." };
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
