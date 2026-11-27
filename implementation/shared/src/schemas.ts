@@ -53,6 +53,7 @@ export const createBookingSchema = z.object({
   holdId: z.string().trim().max(60).optional().nullable(),
   idempotencyKey: z.string().trim().min(4).max(80).optional().nullable(),
   simulatePaymentOutcome: z.enum(["CONFIRMED", "FAILED"]).optional(),
+  paymentChannel: z.enum(["DEMO_SANDBOX", "ORGANISER_UPI"]).optional(),
   items: z.array(bookingItemInputSchema).min(1).max(6),
   attendees: z.array(bookingAttendeeInputSchema).max(10).optional()
 });
@@ -369,4 +370,53 @@ export const csvImportGuestsSchema = z.object({
   csvText: z.string().trim().min(3).max(200000),
   defaultTierId: z.string().trim().optional(),
   defaultGuestType: z.enum(["WALK_IN_CASH", "VIP", "COMPLIMENTARY"]).default("COMPLIMENTARY")
+});
+
+export const upiVpaSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-zA-Z0-9._-]{2,64}@[a-zA-Z0-9]{2,32}$/, "Enter a valid UPI ID (e.g. name@bank).");
+
+export const upsertOrganiserPaymentProfileSchema = z
+  .object({
+    upiEnabled: z.boolean(),
+    upiId: z.string().trim().max(98).optional().nullable(),
+    payeeDisplayName: z.string().trim().max(80).optional().nullable(),
+    paymentInstructions: z.string().trim().max(400).optional().nullable()
+  })
+  .superRefine((val, ctx) => {
+    if (val.upiEnabled) {
+      if (!val.upiId || !upiVpaSchema.safeParse(val.upiId).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["upiId"],
+          message: "Valid UPI ID (VPA) is required when Direct UPI is enabled."
+        });
+      }
+      if (!val.payeeDisplayName || val.payeeDisplayName.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["payeeDisplayName"],
+          message: "Payee display name (min 2 chars) is required when Direct UPI is enabled."
+        });
+      }
+    } else if (val.upiId && val.upiId.trim().length > 0 && !upiVpaSchema.safeParse(val.upiId).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["upiId"],
+        message: "Enter a valid UPI ID (e.g. name@bank)."
+      });
+    }
+  });
+
+export const submitUpiPaymentClaimSchema = z.object({
+  claimedPaid: z.literal(true),
+  transactionRef: z.string().trim().max(64).optional().nullable(),
+  expectedAmountInr: z.number().int().nonnegative().optional()
+});
+
+export const verifyOrganiserPaymentSchema = z.object({
+  decision: z.enum(["APPROVE", "REJECT"]),
+  reason: z.string().trim().max(400).optional(),
+  expectedAmountInr: z.number().int().nonnegative().optional()
 });

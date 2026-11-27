@@ -22,6 +22,7 @@ import {
   OrganiserQuestionBuilder,
   OrganiserStorefrontPanel
 } from "@/components/OrganiserMilestonePanel";
+import { OrganiserPaymentsPanel } from "@/components/OrganiserPaymentsPanel";
 
 interface OrganiserOverview {
   organizations: Organization[];
@@ -40,7 +41,7 @@ export default function OrganiserPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<
-    "analytics" | "storefront" | "events" | "approvals" | "guests" | "offers" | "orders" | "staff" | "finance"
+    "analytics" | "storefront" | "payments" | "events" | "approvals" | "guests" | "offers" | "orders" | "staff" | "finance"
   >("analytics");
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -349,7 +350,7 @@ export default function OrganiserPortalPage() {
             ) : null}
 
             <div className="flex flex-wrap gap-2">
-              {(["analytics", "storefront", "events", "approvals", "guests", "offers", "orders", "staff", "finance"] as const).map((t) => (
+              {(["analytics", "storefront", "payments", "events", "approvals", "guests", "offers", "orders", "staff", "finance"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -425,6 +426,16 @@ export default function OrganiserPortalPage() {
               <OrganiserStorefrontPanel
                 org={data.organizations.find((o) => o.id === selectedOrgId) ?? data.organizations[0]!}
                 onSaved={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
+            {tab === "payments" && data.organizations.length > 0 ? (
+              <OrganiserPaymentsPanel
+                org={data.organizations.find((o) => o.id === selectedOrgId) ?? data.organizations[0]!}
+                onUpdated={async (msg) => {
                   setNotice(msg);
                   await loadOverview();
                 }}

@@ -41,7 +41,8 @@ import { recordAuditLog } from "./authStore.ts";
 import { getPool } from "./db.ts";
 import { ensureSchemaBootstrapped } from "./bootstrapDb.ts";
 import { getMemoryStore } from "./memoryStore.ts";
-import { executeDemoPaymentAdapter } from "./paymentAdapter.ts";
+import { executeDemoPaymentAdapter, getOrganiserPaymentAdapter } from "./paymentAdapter.ts";
+import { expireStaleUpiBookings, getPublicOrganiserPaymentInfo } from "./organiserPaymentService.ts";
 import { listBookingAttendees, listEventQuestions } from "./sellerGuestService.ts";
 
 const seedEventMap = new Map(SEED_EVENTS.map((e) => [e.slug, e]));
@@ -690,6 +691,12 @@ export async function listBookings(filters?: {
     paymentStatus: (r.payment_status as BookingRecord["paymentStatus"]) ?? "CONFIRMED",
     paymentRef: r.payment_ref ? String(r.payment_ref) : null,
     paymentChannel: (r.payment_channel as BookingRecord["paymentChannel"]) ?? "DEMO_SANDBOX",
+    paymentSubmittedAt: r.payment_submitted_at ? new Date(String(r.payment_submitted_at)).toISOString() : null,
+    paymentSubmittedRef: r.payment_submitted_ref ? String(r.payment_submitted_ref) : null,
+    paymentVerifiedAt: r.payment_verified_at ? new Date(String(r.payment_verified_at)).toISOString() : null,
+    paymentVerifiedBy: r.payment_verified_by ? String(r.payment_verified_by) : null,
+    paymentRejectionReason: r.payment_rejection_reason ? String(r.payment_rejection_reason) : null,
+    paymentExpiresAt: r.payment_expires_at ? new Date(String(r.payment_expires_at)).toISOString() : null,
     bookingSource: (r.booking_source as BookingRecord["bookingSource"]) ?? "ONLINE",
     approvalStatus: (r.approval_status as BookingRecord["approvalStatus"]) ?? "NOT_REQUIRED",
     approvalToken: r.approval_token ? String(r.approval_token) : null,
@@ -712,6 +719,7 @@ export async function createDemoBooking(
   options: { userId?: string | null } = {}
 ): Promise<BookingRecord> {
   await expireStaleHolds();
+  await expireStaleUpiBookings();
   const input = createBookingSchema.parse(rawInput);
   const detail = await getEventDetail(input.eventSlug);
   if (!detail) {
@@ -772,24 +780,40 @@ export async function createDemoBooking(
   }
 
   const requiresApproval = Boolean(event.approvalRequired);
-  const paymentAttempt = requiresApproval
-    ? {
-        state: "PENDING" as const,
-        mode: "DEMO_NO_CHARGE" as const,
-        transactionRef: null,
-        message: "Awaiting organiser approval before payment."
-      }
-    : await executeDemoPaymentAdapter({
-        amountInr: breakdown.totalInr,
-        simulateOutcome: input.simulatePaymentOutcome
-      });
-  if (!requiresApproval && paymentAttempt.state === "FAILED") {
-    throw new Error(paymentAttempt.message);
-  }
-
+  const isDirectUpi = !requiresApproval && input.paymentChannel === "ORGANISER_UPI";
+  const deferTickets = requiresApproval || isDirectUpi;
+  const orgId = event.organizationId ?? "org-nightlifez-originals";
   const bookingId = `bkg_${crypto.randomUUID().slice(0, 12)}`;
   const refCode = `NLZ-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
   const nowIso = new Date().toISOString();
+  const paymentExpiresAtIso = isDirectUpi ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
+
+  let paymentAttempt: { state: "PENDING" | "CONFIRMED" | "FAILED"; transactionRef: string | null; message: string };
+  if (requiresApproval) {
+    paymentAttempt = { state: "PENDING", transactionRef: null, message: "Awaiting organiser approval before payment." };
+  } else if (isDirectUpi) {
+    const upiInfo = await getPublicOrganiserPaymentInfo(orgId);
+    if (!upiInfo.upiEnabled || !upiInfo.upiId || !upiInfo.payeeDisplayName) {
+      throw new Error("Direct UPI is not enabled for this organiser.");
+    }
+    const adapter = getOrganiserPaymentAdapter("ORGANISER_UPI");
+    const initRes = await adapter.initiatePayment({
+      amountInr: breakdown.totalInr,
+      referenceCode: refCode,
+      upiId: upiInfo.upiId,
+      payeeDisplayName: upiInfo.payeeDisplayName
+    });
+    paymentAttempt = { state: initRes.state as "PENDING", transactionRef: initRes.transactionRef, message: initRes.message };
+  } else {
+    const demoRes = await executeDemoPaymentAdapter({
+      amountInr: breakdown.totalInr,
+      simulateOutcome: input.simulatePaymentOutcome
+    });
+    paymentAttempt = { state: demoRes.state as "CONFIRMED" | "FAILED", transactionRef: demoRes.transactionRef, message: demoRes.message };
+    if (paymentAttempt.state === "FAILED") {
+      throw new Error(paymentAttempt.message);
+    }
+  }
 
   const pool = getPool();
   if (!pool) {
@@ -849,7 +873,7 @@ export async function createDemoBooking(
     const attendeeRecords: BookingAttendeeRecord[] = [];
     let attCursor = 0;
 
-    if (!requiresApproval) {
+    if (!deferTickets) {
       for (const item of items) {
         for (let i = 0; i < item.quantity; i++) {
           const vAtt = validatedAttendees[attCursor++];
@@ -899,7 +923,7 @@ export async function createDemoBooking(
       id: bookingId,
       referenceCode: refCode,
       userId: options.userId ?? null,
-      organizationId: event.organizationId ?? "org-nightlifez-originals",
+      organizationId: orgId,
       attendeeEmail: input.attendeeEmail,
       attendeeName: input.attendeeName,
       eventId: event.id,
@@ -913,11 +937,16 @@ export async function createDemoBooking(
       convenienceFeeInr: breakdown.convenienceFeeInr,
       gstInr: breakdown.gstInr,
       totalInr: breakdown.totalInr,
-      status: requiresApproval ? "PENDING_APPROVAL" : "CONFIRMED_DEMO",
+      status: requiresApproval
+        ? "PENDING_APPROVAL"
+        : isDirectUpi
+        ? "AWAITING_PAYMENT_VERIFICATION"
+        : "CONFIRMED_DEMO",
       paymentMode: "DEMO_NO_CHARGE",
-      paymentStatus: requiresApproval ? "PENDING" : "CONFIRMED",
+      paymentStatus: deferTickets ? "PENDING" : "CONFIRMED",
       paymentRef: paymentAttempt.transactionRef,
-      paymentChannel: "DEMO_SANDBOX",
+      paymentChannel: isDirectUpi ? "ORGANISER_UPI" : "DEMO_SANDBOX",
+      paymentExpiresAt: paymentExpiresAtIso,
       bookingSource: "ONLINE",
       approvalStatus: requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
       createdAt: nowIso,
@@ -943,7 +972,7 @@ export async function createDemoBooking(
         isRead: false,
         createdAt: nowIso
       });
-    } else {
+    } else if (!isDirectUpi) {
       store.ledger.unshift(
       {
         id: `led_${crypto.randomUUID().slice(0, 10)}`,
@@ -1068,14 +1097,14 @@ export async function createDemoBooking(
          attendee_email, attendee_name, event_id, event_slug,
          event_title, venue_name, date_label, offer_code, subtotal_inr, discount_inr,
          convenience_fee_inr, gst_inr, total_inr, status, payment_mode, payment_status, payment_ref,
-         approval_status, booking_source, payment_channel
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'DEMO_NO_CHARGE',$21,$22,$23,'ONLINE','DEMO_SANDBOX')
+         approval_status, booking_source, payment_channel, payment_expires_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'DEMO_NO_CHARGE',$21,$22,$23,'ONLINE',$24,$25)
        RETURNING created_at`,
       [
         bookingId,
         refCode,
         options.userId ?? null,
-        event.organizationId ?? "org-nightlifez-originals",
+        orgId,
         input.idempotencyKey ?? null,
         input.holdId ?? null,
         input.attendeeEmail,
@@ -1091,10 +1120,16 @@ export async function createDemoBooking(
         breakdown.convenienceFeeInr,
         breakdown.gstInr,
         breakdown.totalInr,
-        requiresApproval ? "PENDING_APPROVAL" : "CONFIRMED_DEMO",
-        requiresApproval ? "PENDING" : "CONFIRMED",
+        requiresApproval
+          ? "PENDING_APPROVAL"
+          : isDirectUpi
+          ? "AWAITING_PAYMENT_VERIFICATION"
+          : "CONFIRMED_DEMO",
+        deferTickets ? "PENDING" : "CONFIRMED",
         paymentAttempt.transactionRef,
-        requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED"
+        requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
+        isDirectUpi ? "ORGANISER_UPI" : "DEMO_SANDBOX",
+        paymentExpiresAtIso
       ]
     );
 
@@ -1111,7 +1146,7 @@ export async function createDemoBooking(
       for (let i = 0; i < item.quantity; i++) {
         const vAtt = validatedAttendees[attCursor++];
         let issuedTicketId: string | null = null;
-        if (!requiresApproval) {
+        if (!deferTickets) {
           const ticketId = `tkt_${crypto.randomUUID().slice(0, 12)}`;
           const ticketCode = `NLZ-TKT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
           const qrToken = signQrPayload(ticketId, event.id, ticketCode);
@@ -1157,14 +1192,19 @@ export async function createDemoBooking(
       }
     }
 
-    if (!requiresApproval) {
+    if (isDirectUpi) {
+      await client.query(
+        `INSERT INTO payment_records (id, booking_id, provider, mode, amount_inr, state, transaction_ref)
+         VALUES ($1,$2,'DIRECT_UPI','DIRECT_ORGANISER_UPI',$3,'PENDING',$4)`,
+        [`pay_${crypto.randomUUID().slice(0, 10)}`, bookingId, breakdown.totalInr, refCode]
+      );
+    } else if (!requiresApproval) {
       await client.query(
         `INSERT INTO payment_records (id, booking_id, provider, mode, amount_inr, state, transaction_ref)
          VALUES ($1,$2,'DEMO_SANDBOX','DEMO_NO_CHARGE',$3,'CONFIRMED',$4)`,
         [`pay_${crypto.randomUUID().slice(0, 10)}`, bookingId, breakdown.totalInr, paymentAttempt.transactionRef]
       );
 
-      const orgId = event.organizationId ?? "org-nightlifez-originals";
       const netSale = Math.max(0, breakdown.subtotalInr - breakdown.discountInr);
       await client.query(
         `INSERT INTO ledger_entries (id, organization_id, booking_id, entry_type, amount_inr, note)
@@ -1201,7 +1241,7 @@ export async function createDemoBooking(
       id: bookingId,
       referenceCode: refCode,
       userId: options.userId ?? null,
-      organizationId: event.organizationId ?? "org-nightlifez-originals",
+      organizationId: orgId,
       attendeeEmail: input.attendeeEmail,
       attendeeName: input.attendeeName,
       eventId: event.id,
@@ -1215,11 +1255,16 @@ export async function createDemoBooking(
       convenienceFeeInr: breakdown.convenienceFeeInr,
       gstInr: breakdown.gstInr,
       totalInr: breakdown.totalInr,
-      status: requiresApproval ? "PENDING_APPROVAL" : "CONFIRMED_DEMO",
+      status: requiresApproval
+        ? "PENDING_APPROVAL"
+        : isDirectUpi
+        ? "AWAITING_PAYMENT_VERIFICATION"
+        : "CONFIRMED_DEMO",
       paymentMode: "DEMO_NO_CHARGE",
-      paymentStatus: requiresApproval ? "PENDING" : "CONFIRMED",
+      paymentStatus: deferTickets ? "PENDING" : "CONFIRMED",
       paymentRef: paymentAttempt.transactionRef,
-      paymentChannel: "DEMO_SANDBOX",
+      paymentChannel: isDirectUpi ? "ORGANISER_UPI" : "DEMO_SANDBOX",
+      paymentExpiresAt: paymentExpiresAtIso,
       bookingSource: "ONLINE",
       approvalStatus: requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
       createdAt: new Date(String(insertRes.rows[0].created_at)).toISOString(),
@@ -1250,7 +1295,7 @@ export async function cancelDemoBooking(id: string, reason?: string): Promise<Bo
     existing.status = "CANCELLED";
     existing.cancellationReason = reason ?? "Cancelled by attendee";
     existing.cancelledAt = nowIso;
-    if (prevStatus === "CONFIRMED_DEMO") {
+    if (prevStatus === "CONFIRMED_DEMO" || prevStatus === "AWAITING_PAYMENT_VERIFICATION") {
       const evt = store.events.find((e) => e.id === existing.eventId);
       if (evt) {
         for (const item of existing.items) {
@@ -1288,7 +1333,7 @@ export async function cancelDemoBooking(id: string, reason?: string): Promise<Bo
         "UPDATE tickets SET status = 'CANCELLED' WHERE booking_id = $1 AND status = 'VALID'",
         [id]
       );
-      if (currentStatus === "CONFIRMED_DEMO") {
+      if (currentStatus === "CONFIRMED_DEMO" || currentStatus === "AWAITING_PAYMENT_VERIFICATION") {
         for (const item of itemRes.rows) {
           await client.query(
             "UPDATE ticket_tiers SET remaining_quota = remaining_quota + $1 WHERE id = $2",

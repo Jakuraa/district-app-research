@@ -258,9 +258,26 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS approved_by TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_source TEXT NOT NULL DEFAULT 'ONLINE';
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_channel TEXT NOT NULL DEFAULT 'DEMO_SANDBOX';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_submitted_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_submitted_ref TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_verified_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_verified_by TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_rejection_reason TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_expires_at TIMESTAMPTZ;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_idempotency ON bookings (idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_approval_token ON bookings (approval_token) WHERE approval_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bookings_org_payment_status ON bookings (organization_id, payment_status, status);
+
+CREATE TABLE IF NOT EXISTS organiser_payment_profiles (
+  organization_id TEXT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  upi_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  upi_id TEXT,
+  payee_display_name TEXT,
+  payment_instructions TEXT,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS booking_attendees (
   id TEXT PRIMARY KEY,

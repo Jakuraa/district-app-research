@@ -17,6 +17,7 @@ import {
   type InventoryHold,
   type LedgerEntry,
   type Organization,
+  type OrganiserPaymentProfile,
   type OtpPurpose,
   type PlatformNotification,
   type PulseEvent,
@@ -64,6 +65,7 @@ export interface MemoryStore {
   cities: City[];
   categories: { key: string; label: string; color: string; isActive: boolean }[];
   organizations: Organization[];
+  organiserPaymentProfiles: OrganiserPaymentProfile[];
   venues: Venue[];
   events: PulseEvent[];
   users: MemoryUserRecord[];
@@ -151,6 +153,7 @@ function createInitialStore(): MemoryStore {
       isActive: true
     })),
     organizations: structuredClone(SEED_ORGANIZATIONS),
+    organiserPaymentProfiles: [],
     venues,
     events,
     users,

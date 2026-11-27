@@ -38,6 +38,7 @@ export type PaymentState = "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "R
 export type BookingStatus =
   | "PENDING_APPROVAL"
   | "APPROVED_AWAITING_PAYMENT"
+  | "AWAITING_PAYMENT_VERIFICATION"
   | "REJECTED"
   | "EXPIRED"
   | "CONFIRMED_DEMO"
@@ -56,7 +57,26 @@ export type BookingSource =
   | "BOX_OFFICE_COMP"
   | "CSV_IMPORT";
 
-export type PaymentChannel = "DEMO_SANDBOX" | "ORGANISER_CASH" | "COMPLIMENTARY";
+export type PaymentChannel = "DEMO_SANDBOX" | "ORGANISER_CASH" | "COMPLIMENTARY" | "ORGANISER_UPI";
+
+export interface OrganiserPaymentProfile {
+  organizationId: string;
+  upiEnabled: boolean;
+  upiId: string | null;
+  payeeDisplayName: string | null;
+  paymentInstructions: string | null;
+  providerMode: "DEMO_SANDBOX" | "DIRECT_UPI";
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export interface PublicOrganiserPaymentInfo {
+  organizationId: string;
+  upiEnabled: boolean;
+  upiId: string | null;
+  payeeDisplayName: string | null;
+  paymentInstructions: string | null;
+}
 
 export type BookingQuestionType =
   | "SHORT_TEXT"
@@ -425,6 +445,12 @@ export interface BookingRecord {
   paymentStatus?: PaymentState;
   paymentRef?: string | null;
   paymentChannel?: PaymentChannel;
+  paymentSubmittedAt?: string | null;
+  paymentSubmittedRef?: string | null;
+  paymentVerifiedAt?: string | null;
+  paymentVerifiedBy?: string | null;
+  paymentRejectionReason?: string | null;
+  paymentExpiresAt?: string | null;
   bookingSource?: BookingSource;
   approvalStatus?: ApprovalStatusField;
   approvalToken?: string | null;

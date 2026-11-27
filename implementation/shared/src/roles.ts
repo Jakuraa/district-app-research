@@ -57,6 +57,7 @@ export type Permission =
   | "org:bookings:read"
   | "org:approvals:decide"
   | "org:guests:manage"
+  | "org:payments:manage"
   | "org:refunds:decide"
   | "org:staff:invite"
   | "org:reports:read"
@@ -116,6 +117,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     "org:bookings:read",
     "org:approvals:decide",
     "org:guests:manage",
+    "org:payments:manage",
     "org:refunds:decide",
     "org:staff:invite",
     "org:reports:read",
@@ -167,6 +169,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     "org:bookings:read",
     "org:approvals:decide",
     "org:guests:manage",
+    "org:payments:manage",
     "org:refunds:decide",
     "org:staff:invite",
     "org:reports:read",
@@ -187,6 +190,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     "org:bookings:read",
     "org:approvals:decide",
     "org:guests:manage",
+    "org:payments:manage",
     "org:refunds:decide",
     "org:staff:invite",
     "org:reports:read",

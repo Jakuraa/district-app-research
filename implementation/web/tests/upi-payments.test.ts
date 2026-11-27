@@ -1,0 +1,269 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { hasPermission } from "@nightlifez/shared";
+import { getMemoryStore } from "../src/lib/memoryStore.ts";
+import {
+  expireStaleUpiBookings,
+  getPublicOrganiserPaymentInfo,
+  listOrganiserPaymentVerifications,
+  submitAttendeeUpiClaim,
+  upsertOrganiserPaymentProfile,
+  verifyOrganiserUpiPayment
+} from "../src/lib/organiserPaymentService.ts";
+import { getOrganiserPaymentAdapter, LIVE_GATEWAY_ENABLED } from "../src/lib/paymentAdapter.ts";
+import { createDemoBooking, listCitiesAndEvents } from "../src/lib/repository.ts";
+
+test("payment adapter keeps LIVE_GATEWAY disabled and DirectOrganiserUpiAdapter never auto-confirms", async () => {
+  assert.equal(LIVE_GATEWAY_ENABLED, false);
+  assert.throws(() => getOrganiserPaymentAdapter("LIVE_GATEWAY"), /disabled/i);
+
+  const directAdapter = getOrganiserPaymentAdapter("ORGANISER_UPI");
+  assert.equal(directAdapter.supportsAutoConfirm, false);
+  const initRes = await directAdapter.initiatePayment({
+    amountInr: 1200,
+    referenceCode: "NLZ-ADAPTER1",
+    upiId: "club@okicici",
+    payeeDisplayName: "Club Pulse"
+  });
+  assert.equal(initRes.state, "PENDING");
+  assert.equal(initRes.requiresManualVerification, true);
+  assert.ok(initRes.upiUri?.startsWith("upi://pay?"));
+});
+
+test("organiser UPI payment flow: zero tickets before approval, claim never auto-confirms, approval issues tickets once, duplicate & mismatch rejected", async () => {
+  const store = getMemoryStore();
+  const { events } = await listCitiesAndEvents({}, { includeNonPublished: true });
+  const event = events.find((e) => e.organizationId && e.tiers.some((t) => t.remainingQuota >= 5));
+  assert.ok(event, "Expected seeded event with organizationId and available tier quota");
+  const orgId = event.organizationId!;
+  const tier = event.tiers.find((t) => t.remainingQuota >= 5)!;
+  const quotaBefore = tier.remainingQuota;
+
+  const orgOwnerActor = { id: "usr_org_owner", email: "owner@nightlifez.test", role: "organiser_owner" };
+
+  try {
+    // 1. Configure Direct UPI for the organiser
+    const savedProfile = await upsertOrganiserPaymentProfile(
+      orgId,
+      {
+        upiEnabled: true,
+        upiId: "afterdark.club@okicici",
+        payeeDisplayName: "Afterdark Club",
+        paymentInstructions: "Pay via UPI and keep UTR handy"
+      },
+      orgOwnerActor
+    );
+    assert.equal(savedProfile.upiEnabled, true);
+    assert.equal(savedProfile.providerMode, "DIRECT_UPI");
+
+    const publicInfo = await getPublicOrganiserPaymentInfo(orgId);
+    assert.equal(publicInfo.upiEnabled, true);
+    assert.equal(publicInfo.upiId, "afterdark.club@okicici");
+
+    // Audit log recorded for config change
+    assert.ok(
+      store.auditLogs.some((a) => a.action === "PAYMENT_PROFILE_UPDATED" && a.targetId === orgId),
+      "Expected PAYMENT_PROFILE_UPDATED audit log"
+    );
+
+    // 2. Attendee creates Direct UPI booking
+    const booking = await createDemoBooking(
+      {
+        eventSlug: event.slug,
+        attendeeName: "Priya Sharma",
+        attendeeEmail: "priya.upi@nightlifez.test",
+        items: [{ tierId: tier.id, quantity: 2 }],
+        paymentChannel: "ORGANISER_UPI",
+        idempotencyKey: `upi-test-${Date.now()}`
+      },
+      { userId: "usr_priya" }
+    );
+
+    assert.equal(booking.status, "AWAITING_PAYMENT_VERIFICATION");
+    assert.equal(booking.paymentStatus, "PENDING");
+    assert.equal(booking.paymentChannel, "ORGANISER_UPI");
+    assert.equal(booking.tickets?.length ?? 0, 0, "No tickets may be issued before organiser verification");
+    assert.equal(tier.remainingQuota, quotaBefore - 2, "Inventory should be reserved while awaiting UPI");
+
+    // 3. Attendee submits "I've Paid" + UTR: must NOT auto-confirm or issue tickets
+    const claimed = await submitAttendeeUpiClaim(
+      booking.id,
+      {
+        claimedPaid: true,
+        transactionRef: "UTR412900001122",
+        expectedAmountInr: booking.totalInr
+      },
+      "usr_priya"
+    );
+    assert.equal(claimed.status, "AWAITING_PAYMENT_VERIFICATION");
+    assert.equal(claimed.paymentStatus, "PENDING");
+    assert.equal(claimed.paymentSubmittedRef, "UTR412900001122");
+    assert.equal(claimed.tickets?.length ?? 0, 0, "UTR claim must never auto-issue tickets");
+
+    // Another attendee cannot submit claim for Priya's booking
+    await assert.rejects(
+      () => submitAttendeeUpiClaim(booking.id, { claimedPaid: true }, "usr_other_attendee"),
+      /Forbidden/i
+    );
+
+    // 4. Amount mismatch on verification must fail
+    await assert.rejects(
+      () =>
+        verifyOrganiserUpiPayment(
+          booking.id,
+          { decision: "APPROVE", expectedAmountInr: booking.totalInr + 100 },
+          orgOwnerActor
+        ),
+      /Amount mismatch/i
+    );
+
+    // 5. Organiser queue lists the pending booking
+    const queue = await listOrganiserPaymentVerifications(orgId);
+    assert.ok(queue.some((b) => b.id === booking.id && b.status === "AWAITING_PAYMENT_VERIFICATION"));
+
+    // 6. Organiser approves payment -> booking confirmed & 2 signed QR tickets issued
+    const approved = await verifyOrganiserUpiPayment(
+      booking.id,
+      { decision: "APPROVE", expectedAmountInr: booking.totalInr },
+      orgOwnerActor
+    );
+    assert.equal(approved.status, "CONFIRMED_DEMO");
+    assert.equal(approved.paymentStatus, "CONFIRMED");
+    assert.equal(approved.paymentVerifiedBy, orgOwnerActor.id);
+    assert.equal(approved.tickets?.length, 2);
+    assert.ok(approved.tickets?.every((t) => t.qrToken.startsWith("NLZ1.")));
+
+    // Audit log recorded for approval
+    assert.ok(
+      store.auditLogs.some((a) => a.action === "PAYMENT_VERIFIED_APPROVED" && a.targetId === booking.id),
+      "Expected PAYMENT_VERIFIED_APPROVED audit log"
+    );
+
+    // 7. Duplicate approval must be rejected and never issue extra tickets
+    await assert.rejects(
+      () => verifyOrganiserUpiPayment(booking.id, { decision: "APPROVE" }, orgOwnerActor),
+      /already|cannot be verified/i
+    );
+    const totalTicketsForBooking = store.tickets.filter((t) => t.bookingId === booking.id).length;
+    assert.equal(totalTicketsForBooking, 2, "Duplicate approval must not create extra tickets");
+  } finally {
+    // Restore default disabled UPI state so other tests are unaffected
+    await upsertOrganiserPaymentProfile(
+      orgId,
+      {
+        upiEnabled: false,
+        upiId: null,
+        payeeDisplayName: null,
+        paymentInstructions: null
+      },
+      orgOwnerActor
+    );
+  }
+});
+
+test("rejected and expired Direct UPI bookings release reserved inventory exactly once", async () => {
+  const store = getMemoryStore();
+  const { events } = await listCitiesAndEvents({}, { includeNonPublished: true });
+  const event = events.find((e) => e.organizationId && e.tiers.some((t) => t.remainingQuota >= 4));
+  assert.ok(event);
+  const orgId = event.organizationId!;
+  const tier = event.tiers.find((t) => t.remainingQuota >= 4)!;
+  const orgOwnerActor = { id: "usr_org_owner", email: "owner@nightlifez.test", role: "organiser_owner" };
+
+  try {
+    await upsertOrganiserPaymentProfile(
+      orgId,
+      { upiEnabled: true, upiId: "venue@ybl", payeeDisplayName: "Venue Co" },
+      orgOwnerActor
+    );
+
+    const quotaStart = tier.remainingQuota;
+
+    // Booking A: rejected by organiser
+    const bookingA = await createDemoBooking(
+      {
+        eventSlug: event.slug,
+        attendeeName: "Rohan Reject",
+        attendeeEmail: "rohan@nightlifez.test",
+        items: [{ tierId: tier.id, quantity: 1 }],
+        paymentChannel: "ORGANISER_UPI",
+        idempotencyKey: `upi-reject-${Date.now()}`
+      },
+      { userId: "usr_rohan" }
+    );
+    assert.equal(tier.remainingQuota, quotaStart - 1);
+
+    const rejected = await verifyOrganiserUpiPayment(
+      bookingA.id,
+      { decision: "REJECT", rejectionReason: "No credit seen in bank app" },
+      orgOwnerActor
+    );
+    assert.equal(rejected.status, "REJECTED");
+    assert.equal(rejected.paymentStatus, "FAILED");
+    assert.equal(rejected.tickets?.length ?? 0, 0);
+    assert.equal(tier.remainingQuota, quotaStart, "Rejection must restore reserved quota");
+
+    // Booking B: expires due to unpaid timeout
+    const bookingB = await createDemoBooking(
+      {
+        eventSlug: event.slug,
+        attendeeName: "Mira Expire",
+        attendeeEmail: "mira@nightlifez.test",
+        items: [{ tierId: tier.id, quantity: 2 }],
+        paymentChannel: "ORGANISER_UPI",
+        idempotencyKey: `upi-expire-${Date.now()}`
+      },
+      { userId: "usr_mira" }
+    );
+    assert.equal(tier.remainingQuota, quotaStart - 2);
+
+    // Force expiry timestamp into the past
+    const memBookingB = store.bookings.find((b) => b.id === bookingB.id)!;
+    memBookingB.paymentExpiresAt = new Date(Date.now() - 60_000).toISOString();
+
+    const expiredCount1 = await expireStaleUpiBookings();
+    assert.ok(expiredCount1 >= 1);
+    assert.equal(memBookingB.status, "EXPIRED");
+    assert.equal(tier.remainingQuota, quotaStart, "Expiry must release reserved quota");
+
+    // Second expiry sweep must not double-release inventory
+    const expiredCount2 = await expireStaleUpiBookings();
+    assert.equal(expiredCount2, 0);
+    assert.equal(tier.remainingQuota, quotaStart, "Repeated expiry sweep must not double-release inventory");
+  } finally {
+    await upsertOrganiserPaymentProfile(
+      orgId,
+      { upiEnabled: false, upiId: null, payeeDisplayName: null, paymentInstructions: null },
+      orgOwnerActor
+    );
+  }
+});
+
+test("RBAC isolation prevents attendee, checkin_staff, box_office, and cross-org users from managing/verifying payments", () => {
+  assert.equal(
+    hasPermission([{ role: "attendee", organizationId: null, venueSlug: null, eventId: null }], "org:payments:manage", {
+      organizationId: "org_1"
+    }),
+    false
+  );
+  assert.equal(
+    hasPermission(
+      [{ role: "checkin_staff", organizationId: "org_1", venueSlug: null, eventId: "evt_1" }],
+      "org:payments:manage",
+      { organizationId: "org_1" }
+    ),
+    false
+  );
+  assert.equal(
+    hasPermission([{ role: "organiser_owner", organizationId: "org_2", venueSlug: null, eventId: null }], "org:payments:manage", {
+      organizationId: "org_1"
+    }),
+    false
+  );
+  assert.equal(
+    hasPermission([{ role: "organiser_owner", organizationId: "org_2", venueSlug: null, eventId: null }], "org:payments:manage", {
+      organizationId: "org_2"
+    }),
+    true
+  );
+});
