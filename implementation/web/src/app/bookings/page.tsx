@@ -37,6 +37,8 @@ export default function BookingsPage() {
 
   const [recoverRef, setRecoverRef] = useState("");
   const [recoverEmail, setRecoverEmail] = useState("");
+  const [recoverCode, setRecoverCode] = useState("");
+  const [recoverStep, setRecoverStep] = useState<"request" | "verify">("request");
 
   async function loadBookings() {
     setLoading(true);
@@ -61,8 +63,8 @@ export default function BookingsPage() {
   }
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("walletToken");
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const token = hashParams.get("walletToken");
     if (token) {
       fetch("/api/bookings/wallet-session", {
         method: "POST",
@@ -85,13 +87,24 @@ export default function BookingsPage() {
     const res = await fetch("/api/bookings/wallet-recover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ referenceCode: recoverRef, attendeeEmail: recoverEmail })
+      body: JSON.stringify({
+        referenceCode: recoverRef,
+        attendeeEmail: recoverEmail,
+        ...(recoverStep === "verify" ? { verificationCode: recoverCode } : {})
+      })
     });
     const json = await res.json();
     if (!res.ok) {
       setNotice(json?.error ?? "Could not recover guest wallet.");
       return;
     }
+    if (recoverStep === "request") {
+      setRecoverStep("verify");
+      setNotice(json?.message ?? "Verification code sent to your booking email.");
+      return;
+    }
+    setRecoverStep("request");
+    setRecoverCode("");
     setNotice("Guest wallet session restored.");
     await loadBookings();
   }
@@ -197,11 +210,20 @@ export default function BookingsPage() {
             placeholder="Booking email"
             className="min-w-0 flex-1 rounded-xl border border-[#e4e6f0] px-3 py-2"
           />
+          {recoverStep === "verify" ? (
+            <input
+              type="text"
+              value={recoverCode}
+              onChange={(e) => setRecoverCode(e.target.value)}
+              placeholder="6-digit email code"
+              className="w-40 rounded-xl border border-[#e4e6f0] px-3 py-2 font-mono"
+            />
+          ) : null}
           <button
             type="submit"
             className="rounded-xl border border-[#e4e6f0] bg-[#f6f7fb] px-4 py-2 font-bold text-[#111319]"
           >
-            Recover Guest Wallet
+            {recoverStep === "verify" ? "Verify & Restore" : "Send Recovery Code"}
           </button>
         </form>
 

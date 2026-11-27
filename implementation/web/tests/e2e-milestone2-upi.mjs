@@ -80,14 +80,28 @@ async function runDesktopFlow(browser) {
   await page.getByText(new RegExp(`Payment verified for ${referenceCode}`, "i")).waitFor({ timeout: 10000 });
   await card.getByText("CONFIRMED_DEMO").waitFor({ timeout: 10000 });
 
-  // 5. Unauthenticated ?email= wallet lookup must be rejected (401), while signed walletToken link works
+  // 5. Unauthenticated ?email=, ?walletToken=, and x-wallet-token header must be rejected (401)
   const unauthRes = await attPage.request.get(
     `${BASE_URL}/api/bookings?email=${encodeURIComponent("upi.e2e@nightlifez.test")}`
   );
   assert.equal(unauthRes.status(), 401, "Unauthenticated email-based wallet lookup must return 401");
 
+  const queryTokenRes = await attPage.request.get(`${BASE_URL}/api/bookings?walletToken=fake.token`);
+  assert.equal(queryTokenRes.status(), 401, "Query-string walletToken fallback must be rejected");
+
+  const headerTokenRes = await attPage.request.get(`${BASE_URL}/api/bookings`, {
+    headers: { "x-wallet-token": "fake.token" }
+  });
+  assert.equal(headerTokenRes.status(), 401, "x-wallet-token header fallback must be rejected");
+
+  // Unverified wallet-recover without email provider fails closed (503) and never issues cookie
+  const recoverRes = await attPage.request.post(`${BASE_URL}/api/bookings/wallet-recover`, {
+    data: { referenceCode, attendeeEmail: "upi.e2e@nightlifez.test" }
+  });
+  assert.equal(recoverRes.status(), 503, "wallet-recover must fail closed when email provider is unconfigured");
+
   const walletHref = await attPage.getByTestId("view-wallet-link").getAttribute("href");
-  assert.ok(walletHref?.includes("walletToken="), "Expected signed walletToken link for guest booking");
+  assert.ok(walletHref?.startsWith("/bookings#walletToken="), "Expected fragment #walletToken= link for guest booking");
   await attPage.goto(`${BASE_URL}${walletHref}`, { waitUntil: "domcontentloaded" });
   await attPage.getByText(referenceCode).waitFor({ timeout: 10000 });
   await attPage.getByText(/CONFIRMED/i).first().waitFor({ timeout: 5000 });
@@ -95,7 +109,7 @@ async function runDesktopFlow(browser) {
   // Verify walletToken was exchanged for HttpOnly cookie and stripped from browser URL
   assert.equal(attPage.url().includes("walletToken="), false, "walletToken must be removed from browser URL");
 
-  // Reload /bookings without query params and verify guest wallet still loads
+  // Reload /bookings without fragment/query params and verify guest wallet still loads
   await attPage.reload({ waitUntil: "domcontentloaded" });
   await attPage.getByText(referenceCode).waitFor({ timeout: 10000 });
 

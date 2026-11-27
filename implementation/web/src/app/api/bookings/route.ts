@@ -29,11 +29,7 @@ function readCookieValue(request: Request, name: string): string | undefined {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email") ?? undefined;
-  const walletToken =
-    readCookieValue(request, WALLET_COOKIE_NAME) ??
-    searchParams.get("walletToken") ??
-    request.headers.get("x-wallet-token") ??
-    undefined;
+  const walletToken = readCookieValue(request, WALLET_COOKIE_NAME);
   const session = await getSessionFromRequest(request);
 
   if (session.user) {

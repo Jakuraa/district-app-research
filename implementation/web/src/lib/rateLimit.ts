@@ -33,6 +33,10 @@ export async function checkSharedRateLimit(
 ): Promise<boolean> {
   const pool = getPool();
   if (!pool) {
+    const isDeployed = process.env.VERCEL === "1" || Boolean(process.env.VERCEL_ENV);
+    if (isDeployed) {
+      throw new Error("DATABASE_URL is required for shared rate limiting in deployed environments.");
+    }
     const now = Date.now();
     const existing = memoryBuckets.get(key);
     if (!existing || existing.resetAtMs <= now) {

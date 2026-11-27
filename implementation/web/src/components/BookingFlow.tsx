@@ -514,7 +514,7 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
 
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
-            href={walletToken ? `/bookings?walletToken=${encodeURIComponent(walletToken)}` : "/bookings"}
+            href={walletToken ? `/bookings#walletToken=${encodeURIComponent(walletToken)}` : "/bookings"}
             data-testid="view-wallet-link"
             className="rounded-xl bg-[#5b3df5] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#4328d6]"
           >

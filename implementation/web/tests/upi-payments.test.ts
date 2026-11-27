@@ -421,6 +421,12 @@ test("getClaimTokenSecret fails closed in production when missing or weak, and t
 });
 
 test("shared rate limiter enforces concurrent limits, window expiry, and ignores spoofed x-forwarded-for", async () => {
+  const prevVercel = process.env.VERCEL;
+  const prevVercelEnv = process.env.VERCEL_ENV;
+  const prevDb = process.env.DATABASE_URL;
+  delete process.env.VERCEL;
+  delete process.env.VERCEL_ENV;
+  delete process.env.DATABASE_URL;
   resetMemoryRateLimitsForTests();
   const reqSpoofed = new Request("http://localhost/api/bookings", {
     headers: {
@@ -439,4 +445,22 @@ test("shared rate limiter enforces concurrent limits, window expiry, and ignores
   // Wait for window expiry
   await new Promise((r) => setTimeout(r, 65));
   assert.equal(await checkSharedRateLimit("test:concurrent", 3, 50), true);
+
+  // Deployed environment without DATABASE_URL must fail closed
+  try {
+    process.env.VERCEL = "1";
+    process.env.VERCEL_ENV = "preview";
+    delete process.env.DATABASE_URL;
+    await assert.rejects(
+      () => checkSharedRateLimit("test:deployed-no-db", 3, 50),
+      /DATABASE_URL is required/i
+    );
+  } finally {
+    if (prevVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = prevVercel;
+    if (prevVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = prevVercelEnv;
+    if (prevDb === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = prevDb;
+  }
 });
