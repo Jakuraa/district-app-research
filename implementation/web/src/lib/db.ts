@@ -17,3 +17,10 @@ export function getPool(): Pool | null {
   }
   return globalThis.__nightlifezPool;
 }
+
+export async function resetPoolForTests(): Promise<void> {
+  if (globalThis.__nightlifezPool) {
+    await globalThis.__nightlifezPool.end().catch(() => {});
+    globalThis.__nightlifezPool = undefined;
+  }
+}

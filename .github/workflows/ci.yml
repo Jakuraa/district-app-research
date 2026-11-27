@@ -30,11 +30,17 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci
-      - run: npm --prefix implementation/web run typecheck
+      - run: npm run typecheck
       - run: npm --prefix implementation/shared test
-      - name: Run web unit & PostgreSQL integration tests
+      - name: Run isolated web unit tests
         env:
-          TEST_DATABASE_URL: postgres://nightlifez_test:nightlifez_test_password@127.0.0.1:5432/nightlifez_test
+          DATABASE_URL: ""
           NIGHTLIFEZ_AUTH_SECRET: ci-test-secret-with-at-least-32-bytes-entropy
         run: npm --prefix implementation/web test
+      - name: Run PostgreSQL integration tests (rate-limit & wallet-recovery)
+        env:
+          DATABASE_URL: postgres://nightlifez_test:nightlifez_test_password@127.0.0.1:5432/nightlifez_test
+          TEST_DATABASE_URL: postgres://nightlifez_test:nightlifez_test_password@127.0.0.1:5432/nightlifez_test
+          NIGHTLIFEZ_AUTH_SECRET: ci-test-secret-with-at-least-32-bytes-entropy
+        run: node --experimental-strip-types --test implementation/web/tests/rate-limit-pg.test.ts implementation/web/tests/wallet-recovery-pg.test.ts
       - run: npm --prefix implementation/web run build
