@@ -28,7 +28,6 @@ function DemoQrGraphic({ code, token }: { code: string; token?: string }) {
 }
 
 export default function BookingsPage() {
-  const [walletToken, setWalletToken] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
@@ -36,13 +35,15 @@ export default function BookingsPage() {
   const [refundReasonByBooking, setRefundReasonByBooking] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function loadBookings(token?: string | null) {
+  const [recoverRef, setRecoverRef] = useState("");
+  const [recoverEmail, setRecoverEmail] = useState("");
+
+  async function loadBookings() {
     setLoading(true);
     try {
-      const qs = token ? `?walletToken=${encodeURIComponent(token)}` : "";
       const [bRes, rRes] = await Promise.all([
-        fetch(`/api/bookings${qs}`),
-        fetch("/api/refunds")
+        fetch("/api/bookings", { cache: "no-store" }),
+        fetch("/api/refunds", { cache: "no-store" })
       ]);
       if (bRes.ok) {
         const bJson = await bRes.json();
@@ -62,9 +63,38 @@ export default function BookingsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("walletToken");
-    setWalletToken(token);
-    void loadBookings(token);
+    if (token) {
+      fetch("/api/bookings/wallet-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletToken: token })
+      })
+        .catch(() => {})
+        .finally(() => {
+          window.history.replaceState({}, "", "/bookings");
+          void loadBookings();
+        });
+    } else {
+      void loadBookings();
+    }
   }, []);
+
+  async function handleRecoverWallet(e: React.FormEvent) {
+    e.preventDefault();
+    setNotice(null);
+    const res = await fetch("/api/bookings/wallet-recover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ referenceCode: recoverRef, attendeeEmail: recoverEmail })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setNotice(json?.error ?? "Could not recover guest wallet.");
+      return;
+    }
+    setNotice("Guest wallet session restored.");
+    await loadBookings();
+  }
 
   async function handleCancel(id: string) {
     setNotice(null);
@@ -75,7 +105,7 @@ export default function BookingsPage() {
       return;
     }
     setNotice("Booking cancelled and inventory restored.");
-    await loadBookings(walletToken);
+    await loadBookings();
   }
 
   async function handleRequestRefund(bookingId: string) {
@@ -92,7 +122,7 @@ export default function BookingsPage() {
       return;
     }
     setNotice("Refund request submitted for review.");
-    await loadBookings(walletToken);
+    await loadBookings();
   }
 
   const visibleBookings = bookings.filter((b) =>
@@ -142,19 +172,38 @@ export default function BookingsPage() {
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#e4e6f0] bg-white px-4 py-3 text-xs text-[#5e6473]">
-          <span>
-            {walletToken
-              ? "Viewing guest booking via secure booking-specific wallet link."
-              : "Showing bookings for your signed-in account."}
-          </span>
+          <span>Showing bookings for your signed-in account or secure guest wallet session.</span>
           <button
             type="button"
-            onClick={() => void loadBookings(walletToken)}
+            onClick={() => void loadBookings()}
             className="rounded-xl bg-[#111319] px-4 py-2 text-xs font-bold text-white"
           >
             Refresh Wallet
           </button>
         </div>
+
+        <form onSubmit={handleRecoverWallet} className="flex flex-wrap gap-2 rounded-2xl border border-[#e4e6f0] bg-white p-3 text-xs">
+          <input
+            type="text"
+            value={recoverRef}
+            onChange={(e) => setRecoverRef(e.target.value)}
+            placeholder="Booking Ref (e.g. NLZ-123456)"
+            className="min-w-0 flex-1 rounded-xl border border-[#e4e6f0] px-3 py-2"
+          />
+          <input
+            type="email"
+            value={recoverEmail}
+            onChange={(e) => setRecoverEmail(e.target.value)}
+            placeholder="Booking email"
+            className="min-w-0 flex-1 rounded-xl border border-[#e4e6f0] px-3 py-2"
+          />
+          <button
+            type="submit"
+            className="rounded-xl border border-[#e4e6f0] bg-[#f6f7fb] px-4 py-2 font-bold text-[#111319]"
+          >
+            Recover Guest Wallet
+          </button>
+        </form>
 
         {loading ? (
           <div className="rounded-2xl border border-[#e4e6f0] bg-white p-8 text-center text-sm text-[#5e6473]">

@@ -88,9 +88,16 @@ async function runDesktopFlow(browser) {
 
   const walletHref = await attPage.getByTestId("view-wallet-link").getAttribute("href");
   assert.ok(walletHref?.includes("walletToken="), "Expected signed walletToken link for guest booking");
-  await attPage.goto(`${BASE_URL}${walletHref}`, { waitUntil: "networkidle" });
+  await attPage.goto(`${BASE_URL}${walletHref}`, { waitUntil: "domcontentloaded" });
   await attPage.getByText(referenceCode).waitFor({ timeout: 10000 });
   await attPage.getByText(/CONFIRMED/i).first().waitFor({ timeout: 5000 });
+
+  // Verify walletToken was exchanged for HttpOnly cookie and stripped from browser URL
+  assert.equal(attPage.url().includes("walletToken="), false, "walletToken must be removed from browser URL");
+
+  // Reload /bookings without query params and verify guest wallet still loads
+  await attPage.reload({ waitUntil: "domcontentloaded" });
+  await attPage.getByText(referenceCode).waitFor({ timeout: 10000 });
 
   await attendeeContext.close();
 

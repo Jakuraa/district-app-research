@@ -253,18 +253,23 @@ export async function buildBookingUpiPayload(booking: BookingRecord): Promise<{
 }
 
 const EPHEMERAL_DEV_SECRET = crypto.randomBytes(32).toString("hex");
+const DEFAULT_WALLET_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const CURRENT_WALLET_TOKEN_VERSION = 1;
 
 export function getClaimTokenSecret(): string {
   const configured = (process.env.NIGHTLIFEZ_AUTH_SECRET || process.env.AUTH_SECRET || "").trim();
-  const isProd = process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";
+  const isDeployedOrProd =
+    process.env.VERCEL === "1" ||
+    Boolean(process.env.VERCEL_ENV) ||
+    process.env.NODE_ENV === "production";
   if (configured) {
     if (Buffer.byteLength(configured, "utf8") < 32) {
       throw new Error("NIGHTLIFEZ_AUTH_SECRET must be at least 32 bytes.");
     }
     return configured;
   }
-  if (isProd) {
-    throw new Error("NIGHTLIFEZ_AUTH_SECRET is required in production.");
+  if (isDeployedOrProd) {
+    throw new Error("NIGHTLIFEZ_AUTH_SECRET is required in deployed and production environments.");
   }
   return EPHEMERAL_DEV_SECRET;
 }
@@ -282,29 +287,80 @@ export function verifyUpiClaimToken(token: string, bookingId: string, referenceC
   return crypto.timingSafeEqual(a, b);
 }
 
-export function createWalletAccessToken(bookingId: string, referenceCode: string): string {
+export function createWalletAccessToken(
+  bookingId: string,
+  referenceCode: string,
+  options?: { ttlSeconds?: number; version?: number }
+): string {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const ttlSec = options?.ttlSeconds ?? DEFAULT_WALLET_TTL_SECONDS;
+  const body = Buffer.from(
+    JSON.stringify({
+      b: bookingId,
+      r: referenceCode,
+      p: "wallet-access",
+      iat: nowSec,
+      exp: nowSec + ttlSec,
+      v: options?.version ?? CURRENT_WALLET_TOKEN_VERSION
+    }),
+    "utf8"
+  ).toString("base64url");
   const sig = crypto
     .createHmac("sha256", getClaimTokenSecret())
-    .update(`wallet-access:${bookingId}:${referenceCode}`)
+    .update(`wallet-access:${body}`)
     .digest("hex");
-  return `${bookingId}.${referenceCode}.${sig}`;
+  return `${body}.${sig}`;
 }
 
 export function verifyWalletAccessToken(
-  token: string
-): { bookingId: string; referenceCode: string } | null {
+  token: string,
+  options?: { minVersion?: number }
+): { bookingId: string; referenceCode: string; iat: number; exp: number; version: number } | null {
   const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [bookingId, referenceCode, sig] = parts;
-  if (!bookingId || !referenceCode || !sig) return null;
+  if (parts.length !== 2) return null;
+  const [body, sig] = parts;
+  if (!body || !sig) return null;
   const expected = crypto
     .createHmac("sha256", getClaimTokenSecret())
-    .update(`wallet-access:${bookingId}:${referenceCode}`)
+    .update(`wallet-access:${body}`)
     .digest("hex");
   const a = Buffer.from(sig, "utf8");
   const b = Buffer.from(expected, "utf8");
-  if (a.length !== b.length) return null;
-  return crypto.timingSafeEqual(a, b) ? { bookingId, referenceCode } : null;
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+  try {
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as {
+      b?: string;
+      r?: string;
+      p?: string;
+      iat?: number;
+      exp?: number;
+      v?: number;
+    };
+    const nowSec = Math.floor(Date.now() / 1000);
+    const minVersion = options?.minVersion ?? CURRENT_WALLET_TOKEN_VERSION;
+    if (
+      parsed.p !== "wallet-access" ||
+      !parsed.b ||
+      !parsed.r ||
+      typeof parsed.iat !== "number" ||
+      typeof parsed.exp !== "number" ||
+      typeof parsed.v !== "number" ||
+      parsed.exp <= nowSec ||
+      parsed.v < minVersion
+    ) {
+      return null;
+    }
+    return {
+      bookingId: parsed.b,
+      referenceCode: parsed.r,
+      iat: parsed.iat,
+      exp: parsed.exp,
+      version: parsed.v
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function submitAttendeeUpiClaim(

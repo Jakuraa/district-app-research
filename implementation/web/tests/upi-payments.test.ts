@@ -376,7 +376,7 @@ test("getClaimTokenSecret fails closed in production when missing or weak, and t
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     (process.env as Record<string, string | undefined>).VERCEL_ENV = "production";
     delete process.env.NIGHTLIFEZ_AUTH_SECRET;
-    assert.throws(() => getClaimTokenSecret(), /required in production/i);
+    assert.throws(() => getClaimTokenSecret(), /required in deployed/i);
 
     process.env.NIGHTLIFEZ_AUTH_SECRET = "too-short-secret";
     assert.throws(() => getClaimTokenSecret(), /at least 32 bytes/i);
@@ -391,9 +391,27 @@ test("getClaimTokenSecret fails closed in production when missing or weak, and t
     assert.equal(verifyWalletAccessToken(claimTok), null);
 
     const walletTok = createWalletAccessToken("bkg_1", "NLZ-111");
-    assert.deepEqual(verifyWalletAccessToken(walletTok), { bookingId: "bkg_1", referenceCode: "NLZ-111" });
+    const verifiedWallet = verifyWalletAccessToken(walletTok);
+    assert.ok(verifiedWallet);
+    assert.equal(verifiedWallet.bookingId, "bkg_1");
+    assert.equal(verifiedWallet.referenceCode, "NLZ-111");
+    assert.ok(verifiedWallet.exp > verifiedWallet.iat);
     assert.equal(verifyWalletAccessToken(`${walletTok}tamper`), null);
     assert.equal(verifyUpiClaimToken(walletTok, "bkg_1", "NLZ-111"), false);
+
+    // Expired wallet token rejected
+    const expiredWalletTok = createWalletAccessToken("bkg_1", "NLZ-111", { ttlSeconds: -10 });
+    assert.equal(verifyWalletAccessToken(expiredWalletTok), null);
+
+    // Revoked / older version wallet token rejected when minVersion bumped
+    const v1Tok = createWalletAccessToken("bkg_1", "NLZ-111", { version: 1 });
+    assert.equal(verifyWalletAccessToken(v1Tok, { minVersion: 2 }), null);
+
+    // Preview deployment also fails closed when secret is missing
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
+    (process.env as Record<string, string | undefined>).VERCEL_ENV = "preview";
+    delete process.env.NIGHTLIFEZ_AUTH_SECRET;
+    assert.throws(() => getClaimTokenSecret(), /required in deployed/i);
   } finally {
     (process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
     (process.env as Record<string, string | undefined>).VERCEL_ENV = prevVercelEnv;
