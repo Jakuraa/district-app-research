@@ -192,6 +192,21 @@ CREATE TABLE IF NOT EXISTS wallet_recovery_challenges (
   consumed_at TIMESTAMPTZ
 );
 
+UPDATE wallet_recovery_challenges w
+SET consumed_at = NOW()
+WHERE w.consumed_at IS NULL
+  AND EXISTS (
+    SELECT 1 FROM wallet_recovery_challenges newer
+    WHERE newer.booking_id = w.booking_id
+      AND newer.attendee_email = w.attendee_email
+      AND newer.consumed_at IS NULL
+      AND (newer.created_at > w.created_at OR (newer.created_at = w.created_at AND newer.id > w.id))
+  );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_recovery_one_active
+  ON wallet_recovery_challenges (booking_id, attendee_email)
+  WHERE consumed_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS ticket_tiers (
   id TEXT PRIMARY KEY,
   event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,

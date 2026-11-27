@@ -120,10 +120,12 @@ export async function requestWalletRecoveryChallenge(params: {
       consumedAtMs: null
     });
   } else {
-    await ensureSchemaBootstrapped(pool);
-    const client = await pool.connect();
+    let client;
     try {
+      await ensureSchemaBootstrapped(pool);
+      client = await pool.connect();
       await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${booking.id}:${email}`]);
       await client.query(
         `UPDATE wallet_recovery_challenges
          SET consumed_at = NOW()
@@ -137,11 +139,11 @@ export async function requestWalletRecoveryChallenge(params: {
         [challengeId, booking.id, booking.referenceCode, email, codeHash, MAX_RECOVERY_ATTEMPTS, String(ttlMs)]
       );
       await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK").catch(() => {});
-      throw err;
+    } catch {
+      if (client) await client.query("ROLLBACK").catch(() => {});
+      return { ok: false, status: 503, error: "Wallet recovery temporarily unavailable." };
     } finally {
-      client.release();
+      if (client) client.release();
     }
   }
 

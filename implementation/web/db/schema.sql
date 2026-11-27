@@ -492,3 +492,7 @@ CREATE TABLE IF NOT EXISTS wallet_recovery_challenges (
   expires_at TIMESTAMPTZ NOT NULL,
   consumed_at TIMESTAMPTZ
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_recovery_one_active
+  ON wallet_recovery_challenges (booking_id, attendee_email)
+  WHERE consumed_at IS NULL;

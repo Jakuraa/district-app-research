@@ -180,9 +180,53 @@ test(
       );
       assert.equal(activeAfterFail.rows[0].cnt, 0);
 
-      // 6. Database error fails closed
+      // 6. Concurrent challenge issuance: advisory lock + partial unique index keep exactly 1 active challenge
+      const sentCodes: string[] = [];
+      const trackingTransport: EmailTransport = {
+        async sendRecoveryEmail({ code }) {
+          sentCodes.push(code);
+          return true;
+        }
+      };
+      const burst = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          requestWalletRecoveryChallenge({
+            referenceCode: booking.referenceCode,
+            attendeeEmail: "pg.recover@nightlifez.test",
+            emailTransport: trackingTransport
+          })
+        )
+      );
+      assert.equal(burst.every((r) => r.ok), true);
+      const activeCountRes = await pool2.query(
+        `SELECT COUNT(*)::int AS cnt FROM wallet_recovery_challenges
+         WHERE booking_id = $1 AND consumed_at IS NULL`,
+        [booking.id]
+      );
+      assert.equal(activeCountRes.rows[0].cnt, 1);
+      // Only one of the 4 issued OTPs (the final committed one) can be consumed
+      const verifyBurst = await Promise.all(
+        sentCodes.map((code) =>
+          verifyWalletRecoveryChallenge({
+            referenceCode: booking.referenceCode,
+            attendeeEmail: "pg.recover@nightlifez.test",
+            verificationCode: code
+          })
+        )
+      );
+      assert.equal(verifyBurst.filter((r) => r.ok).length, 1);
+
+      // 7. Database error fails closed on both request and verify
       await resetPoolForTests();
       process.env.DATABASE_URL = "postgres://invalid:invalid@127.0.0.1:1/nonexistent";
+      const dbErrReq = await requestWalletRecoveryChallenge({
+        referenceCode: booking.referenceCode,
+        attendeeEmail: "pg.recover@nightlifez.test",
+        emailTransport: fakeTransport
+      });
+      assert.equal(dbErrReq.ok, false);
+      if (!dbErrReq.ok) assert.equal(dbErrReq.status, 503);
+
       const dbErrRes = await verifyWalletRecoveryChallenge({
         referenceCode: booking.referenceCode,
         attendeeEmail: "pg.recover@nightlifez.test",
