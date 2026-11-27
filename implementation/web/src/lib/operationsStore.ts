@@ -55,6 +55,14 @@ export async function listOrganizations(scopeOrgIds?: string[]): Promise<Organiz
     approvalStatus: r.approval_status as Organization["approvalStatus"],
     rating: Number(r.rating),
     tenureLabel: String(r.tenure_label),
+    bioIntro: r.bio_intro ? String(r.bio_intro) : null,
+    coverArtworkUrl: r.cover_artwork_url ? String(r.cover_artwork_url) : null,
+    instagramHandle: r.instagram_handle ? String(r.instagram_handle) : null,
+    publicContactPhone: r.public_contact_phone ? String(r.public_contact_phone) : null,
+    publicContactEmail: r.public_contact_email ? String(r.public_contact_email) : null,
+    socialLinks: (r.social_links_json as Organization["socialLinks"]) ?? [],
+    promotedListingsEnabled: Boolean(r.promoted_listings_enabled),
+    promotedEventSlugs: (r.promoted_event_slugs_json as string[]) ?? [],
     createdBy: r.created_by ? String(r.created_by) : null,
     createdAt: new Date(String(r.created_at)).toISOString()
   }));
@@ -174,6 +182,8 @@ export async function upsertOrganiserEvent(
       existing.durationLabel = input.durationLabel;
       existing.activePhase = input.activePhase ?? existing.activePhase;
       existing.lifecycleStatus = nextStatus;
+      if (input.visibility !== undefined) existing.visibility = input.visibility;
+      if (input.approvalRequired !== undefined) existing.approvalRequired = input.approvalRequired;
       existing.tiers = tiers.map((nt) => {
         const old = existing.tiers.find((ot) => ot.id === nt.id);
         return old ? { ...nt, remainingQuota: Math.min(nt.totalQuota, old.remainingQuota) } : nt;
@@ -201,6 +211,9 @@ export async function upsertOrganiserEvent(
       venueName: venue.name,
       organizationId: org.id,
       lifecycleStatus: input.lifecycleStatus ?? "PUBLISHED",
+      visibility: input.visibility ?? "PUBLIC",
+      approvalRequired: input.approvalRequired ?? false,
+      clonedFromEventId: null,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       dateLabel: input.dateLabel,
@@ -261,7 +274,9 @@ export async function upsertOrganiserEvent(
         `UPDATE events SET
            title = $2, category = $3, city_slug = $4, venue_slug = $5, venue_name = $6,
            starts_at = $7, ends_at = $8, date_label = $9, summary = $10, age_limit = $11,
-           language = $12, duration_label = $13, active_phase = $14, lifecycle_status = $15, updated_at = NOW()
+           language = $12, duration_label = $13, active_phase = $14, lifecycle_status = $15,
+           visibility = COALESCE($16, visibility), approval_required = COALESCE($17, approval_required),
+           updated_at = NOW()
          WHERE id = $1`,
         [
           eventId,
@@ -278,7 +293,9 @@ export async function upsertOrganiserEvent(
           input.language ?? null,
           input.durationLabel ?? null,
           input.activePhase ?? String(existing.active_phase),
-          nextStatus
+          nextStatus,
+          input.visibility ?? null,
+          input.approvalRequired ?? null
         ]
       );
     } else {
@@ -287,13 +304,14 @@ export async function upsertOrganiserEvent(
            id, slug, title, category, city_slug, venue_slug, venue_name,
            starts_at, ends_at, date_label, artwork_url, age_limit, language,
            duration_label, distance_km, organization_id, lifecycle_status,
+           visibility, approval_required,
            organizer_name, organizer_rating, organizer_tenure, summary,
            highlights_json, facilities_json, policies_json, lineup_json,
            sales_timeline_json, active_phase, partial_reserve_percent,
            is_featured, accent_color, created_by
          ) VALUES (
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'/art/evt-solstice.svg',$11,$12,$13,$14,$15,$16,
-           $17,$18,$19,$20,$21::jsonb,$22::jsonb,$23::jsonb,'[]'::jsonb,$24::jsonb,$25,NULL,FALSE,'#5B3DF5',$26
+           $17,$18,$19,$20,$21,$22,$23::jsonb,$24::jsonb,$25::jsonb,'[]'::jsonb,$26::jsonb,$27,NULL,FALSE,'#5B3DF5',$28
          )`,
         [
           eventId,
@@ -312,6 +330,8 @@ export async function upsertOrganiserEvent(
           venue.distanceKm ?? 5,
           org.id,
           input.lifecycleStatus ?? "PUBLISHED",
+          input.visibility ?? "PUBLIC",
+          input.approvalRequired ?? false,
           org.name,
           org.rating,
           org.tenureLabel,

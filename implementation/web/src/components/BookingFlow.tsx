@@ -6,6 +6,7 @@ import {
   calculatePriceBreakdown,
   formatInr,
   getTierAvailability,
+  type BookingQuestion,
   type BookingRecord,
   type InventoryHold,
   type PaymentState,
@@ -44,6 +45,10 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<BookingRecord | null>(null);
+  const [questions, setQuestions] = useState<BookingQuestion[]>([]);
+  const [attendeeDrafts, setAttendeeDrafts] = useState<
+    Record<number, { fullName?: string; email?: string; phone?: string; answers: Record<string, string | number | boolean | string[]> }>
+  >({});
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -55,7 +60,13 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
         }
       })
       .catch(() => {});
-  }, []);
+    fetch(`/api/events/${encodeURIComponent(event.slug)}/questions`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data?.questions)) setQuestions(data.questions);
+      })
+      .catch(() => {});
+  }, [event.slug]);
 
   useEffect(() => {
     if (!activeHold) return;
@@ -187,6 +198,31 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
     setSubmitting(true);
     setPaymentState("PENDING");
     try {
+      const attendeesPayload =
+        questions.length > 0
+          ? selections.flatMap((sel) =>
+              Array.from({ length: sel.quantity }, (_, idxOffset) => idxOffset)
+            ).map((_, globalIdx) => {
+              let cursor = 0;
+              let resolvedTierId = selections[0]!.tierId;
+              for (const sel of selections) {
+                if (globalIdx >= cursor && globalIdx < cursor + sel.quantity) {
+                  resolvedTierId = sel.tierId;
+                  break;
+                }
+                cursor += sel.quantity;
+              }
+              const draft = attendeeDrafts[globalIdx];
+              return {
+                tierId: resolvedTierId,
+                fullName: (draft?.fullName || attendeeName).trim(),
+                email: (draft?.email || attendeeEmail).trim(),
+                phone: draft?.phone?.trim() || null,
+                answers: draft?.answers ?? {}
+              };
+            })
+          : undefined;
+
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,7 +235,8 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
           holdId: activeHold?.id ?? null,
           idempotencyKey: simulateOutcome === "CONFIRMED" ? idempotencyKey : undefined,
           simulatePaymentOutcome: simulateOutcome,
-          items: selections
+          items: selections,
+          attendees: attendeesPayload
         })
       });
       const json = await res.json();
@@ -207,7 +244,7 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
         setPaymentState("FAILED");
         throw new Error(json?.error ?? "Reservation failed");
       }
-      setPaymentState("CONFIRMED");
+      setPaymentState(json.booking?.status === "PENDING_APPROVAL" ? "PENDING" : "CONFIRMED");
       setConfirmedBooking(json.booking);
     } catch (err) {
       setPaymentState("FAILED");
@@ -218,10 +255,13 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
   }
 
   if (confirmedBooking) {
+    const isPendingApproval = confirmedBooking.status === "PENDING_APPROVAL";
     return (
-      <div className="mx-auto max-w-2xl rounded-3xl border border-[#16a34a] bg-white p-6 shadow-sm sm:p-8">
-        <span className="inline-block rounded-full bg-[#dcfce7] px-3 py-1 text-xs font-extrabold text-[#16a34a]">
-          DEMO RESERVATION CONFIRMED · NO CHARGE
+      <div className={`mx-auto max-w-2xl rounded-3xl border bg-white p-6 shadow-sm sm:p-8 ${isPendingApproval ? "border-[#d97706]" : "border-[#16a34a]"}`}>
+        <span className={`inline-block rounded-full px-3 py-1 text-xs font-extrabold ${isPendingApproval ? "bg-[#fef3c7] text-[#d97706]" : "bg-[#dcfce7] text-[#16a34a]"}`}>
+          {isPendingApproval
+            ? "REQUEST SUBMITTED · AWAITING ORGANISER APPROVAL (₹0 CHARGED)"
+            : "DEMO RESERVATION CONFIRMED · NO CHARGE"}
         </span>
         <h2 className="mt-3 text-2xl font-extrabold text-[#111319]">
           Reference: {confirmedBooking.referenceCode}
@@ -608,6 +648,11 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
             ) : null}
 
             <div className="space-y-2 pt-2">
+              {event.approvalRequired ? (
+                <div className="rounded-xl bg-[#fef3c7] px-3 py-2 text-xs font-bold text-[#92400e]">
+                  Host approval required: you will only pay once the organiser approves your request.
+                </div>
+              ) : null}
               <label className="block text-xs font-bold text-[#5e6473]">
                 Attendee Name
                 <input
@@ -630,17 +675,140 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
                   className="mt-1 w-full rounded-xl border border-[#e4e6f0] px-3 py-2 text-sm text-[#111319]"
                 />
               </label>
-              <label className="block text-xs font-bold text-[#5e6473]">
-                Sandbox Payment Adapter Mode
-                <select
-                  value={simulateOutcome}
-                  onChange={(e) => setSimulateOutcome(e.target.value as "CONFIRMED" | "FAILED")}
-                  className="mt-1 w-full rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-xs font-semibold text-[#111319]"
-                >
-                  <option value="CONFIRMED">Approve Sandbox Payment (No Real Charge)</option>
-                  <option value="FAILED">Simulate Payment Decline (Test Error Handling)</option>
-                </select>
-              </label>
+
+              {questions.length > 0 && breakdown.totalQuantity > 0 ? (
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-extrabold uppercase text-[#5e6473]">
+                    Attendee Details & Questions
+                  </div>
+                  {Array.from({ length: breakdown.totalQuantity }, (_, idx) => {
+                    const draft = attendeeDrafts[idx] ?? { answers: {} };
+                    const setAnswer = (qid: string, val: string | number | boolean | string[]) => {
+                      setAttendeeDrafts((prev) => ({
+                        ...prev,
+                        [idx]: {
+                          ...(prev[idx] ?? { answers: {} }),
+                          answers: { ...(prev[idx]?.answers ?? {}), [qid]: val }
+                        }
+                      }));
+                    };
+                    return (
+                      <div key={idx} className="space-y-2 rounded-xl border border-[#e4e6f0] bg-[#f6f7fb] p-3">
+                        <div className="text-xs font-extrabold text-[#111319]">Attendee #{idx + 1}</div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <input
+                            type="text"
+                            placeholder={attendeeName || "Full name"}
+                            value={draft.fullName ?? ""}
+                            onChange={(e) =>
+                              setAttendeeDrafts((prev) => ({
+                                ...prev,
+                                [idx]: { ...(prev[idx] ?? { answers: {} }), fullName: e.target.value }
+                              }))
+                            }
+                            className="rounded-lg border border-[#e4e6f0] bg-white px-2.5 py-1.5 text-xs"
+                          />
+                          <input
+                            type="email"
+                            placeholder={attendeeEmail || "Email"}
+                            value={draft.email ?? ""}
+                            onChange={(e) =>
+                              setAttendeeDrafts((prev) => ({
+                                ...prev,
+                                [idx]: { ...(prev[idx] ?? { answers: {} }), email: e.target.value }
+                              }))
+                            }
+                            className="rounded-lg border border-[#e4e6f0] bg-white px-2.5 py-1.5 text-xs"
+                          />
+                        </div>
+                        {questions.map((q) => (
+                          <div key={q.id} className="space-y-1 text-xs">
+                            <div className="font-bold text-[#374151]">
+                              {q.label} {q.required ? <span className="text-[#dc2626]">*</span> : null}
+                            </div>
+                            {q.fieldType === "SHORT_TEXT" || q.fieldType === "NUMBER" ? (
+                              <input
+                                type={q.fieldType === "NUMBER" ? "number" : "text"}
+                                required={q.required}
+                                value={String(draft.answers[q.id] ?? "")}
+                                onChange={(e) => setAnswer(q.id, e.target.value)}
+                                className="w-full rounded-lg border border-[#e4e6f0] bg-white px-2.5 py-1.5 text-xs"
+                              />
+                            ) : q.fieldType === "LONG_TEXT" ? (
+                              <textarea
+                                rows={2}
+                                required={q.required}
+                                value={String(draft.answers[q.id] ?? "")}
+                                onChange={(e) => setAnswer(q.id, e.target.value)}
+                                className="w-full rounded-lg border border-[#e4e6f0] bg-white px-2.5 py-1.5 text-xs"
+                              />
+                            ) : q.fieldType === "DROPDOWN" ? (
+                              <select
+                                required={q.required}
+                                value={String(draft.answers[q.id] ?? "")}
+                                onChange={(e) => setAnswer(q.id, e.target.value)}
+                                className="w-full rounded-lg border border-[#e4e6f0] bg-white px-2.5 py-1.5 text-xs"
+                              >
+                                <option value="">Select...</option>
+                                {q.options.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : q.fieldType === "MULTI_CHOICE" ? (
+                              <div className="flex flex-wrap gap-2">
+                                {q.options.map((opt) => {
+                                  const selectedArr = Array.isArray(draft.answers[q.id])
+                                    ? (draft.answers[q.id] as string[])
+                                    : [];
+                                  const checked = selectedArr.includes(opt);
+                                  return (
+                                    <label key={opt} className="flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px]">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() =>
+                                          setAnswer(
+                                            q.id,
+                                            checked ? selectedArr.filter((x) => x !== opt) : [...selectedArr, opt]
+                                          )
+                                        }
+                                      />
+                                      {opt}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(draft.answers[q.id])}
+                                  onChange={(e) => setAnswer(q.id, e.target.checked)}
+                                />
+                                <span>Yes</span>
+                              </label>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {!event.approvalRequired ? (
+                <label className="block text-xs font-bold text-[#5e6473]">
+                  Sandbox Payment Adapter Mode
+                  <select
+                    value={simulateOutcome}
+                    onChange={(e) => setSimulateOutcome(e.target.value as "CONFIRMED" | "FAILED")}
+                    className="mt-1 w-full rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-xs font-semibold text-[#111319]"
+                  >
+                    <option value="CONFIRMED">Approve Sandbox Payment (No Real Charge)</option>
+                    <option value="FAILED">Simulate Payment Decline (Test Error Handling)</option>
+                  </select>
+                </label>
+              ) : null}
             </div>
 
             {submitError ? (
@@ -652,7 +820,11 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
               disabled={submitting || breakdown.totalQuantity === 0}
               className="w-full rounded-xl bg-[#5b3df5] py-3.5 text-sm font-extrabold text-white transition hover:bg-[#4328d6] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
             >
-              {submitting ? "Authorizing Demo Pass..." : "Confirm Demo Reservation (No Charge)"}
+              {submitting
+                ? "Submitting..."
+                : event.approvalRequired
+                ? "Request Spot (Approval Required · No Charge)"
+                : "Confirm Demo Reservation (No Charge)"}
             </button>
           </form>
         </aside>

@@ -35,7 +35,36 @@ export type OfferKind = "PERCENT_CAP" | "FLAT" | "BOGO_TIER";
 
 export type PaymentState = "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED";
 
-export type BookingStatus = "CONFIRMED_DEMO" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED";
+export type BookingStatus =
+  | "PENDING_APPROVAL"
+  | "APPROVED_AWAITING_PAYMENT"
+  | "REJECTED"
+  | "EXPIRED"
+  | "CONFIRMED_DEMO"
+  | "CANCELLED"
+  | "REFUND_PENDING"
+  | "REFUNDED";
+
+export type EventVisibility = "PUBLIC" | "UNLISTED" | "INVITE_ONLY";
+
+export type ApprovalStatusField = "NOT_REQUIRED" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "EXPIRED";
+
+export type BookingSource =
+  | "ONLINE"
+  | "BOX_OFFICE_WALKIN"
+  | "BOX_OFFICE_VIP"
+  | "BOX_OFFICE_COMP"
+  | "CSV_IMPORT";
+
+export type PaymentChannel = "DEMO_SANDBOX" | "ORGANISER_CASH" | "COMPLIMENTARY";
+
+export type BookingQuestionType =
+  | "SHORT_TEXT"
+  | "LONG_TEXT"
+  | "NUMBER"
+  | "DROPDOWN"
+  | "MULTI_CHOICE"
+  | "CHECKBOX";
 
 export type TicketStatus = "VALID" | "USED" | "CANCELLED" | "REVOKED" | "EXPIRED";
 
@@ -105,6 +134,11 @@ export interface Venue {
   sections: VenueSection[];
 }
 
+export interface SocialLink {
+  platform: string;
+  url: string;
+}
+
 export interface Organization {
   id: string;
   slug: string;
@@ -115,7 +149,39 @@ export interface Organization {
   approvalStatus: ApprovalStatus;
   rating: number;
   tenureLabel: string;
+  bioIntro?: string | null;
+  coverArtworkUrl?: string | null;
+  instagramHandle?: string | null;
+  publicContactPhone?: string | null;
+  publicContactEmail?: string | null;
+  socialLinks?: SocialLink[];
+  promotedListingsEnabled?: boolean;
+  promotedEventSlugs?: string[];
   createdBy: string | null;
+  createdAt: string;
+}
+
+export interface BookingQuestion {
+  id: string;
+  eventId: string;
+  label: string;
+  fieldType: BookingQuestionType;
+  options: string[];
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface BookingAttendeeRecord {
+  id: string;
+  bookingId: string;
+  eventId: string;
+  tierId: string;
+  attendeeIndex: number;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  answers: Record<string, string | number | boolean | string[]>;
+  ticketId: string | null;
   createdAt: string;
 }
 
@@ -179,6 +245,9 @@ export interface PulseEvent {
   venueName: string;
   organizationId?: string | null;
   lifecycleStatus?: EventLifecycleStatus;
+  visibility?: EventVisibility;
+  approvalRequired?: boolean;
+  clonedFromEventId?: string | null;
   moderationNotes?: string | null;
   startsAt: string;
   endsAt: string;
@@ -355,10 +424,20 @@ export interface BookingRecord {
   paymentMode: "DEMO_NO_CHARGE";
   paymentStatus?: PaymentState;
   paymentRef?: string | null;
+  paymentChannel?: PaymentChannel;
+  bookingSource?: BookingSource;
+  approvalStatus?: ApprovalStatusField;
+  approvalToken?: string | null;
+  approvalExpiresAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  approvedBy?: string | null;
+  rejectionReason?: string | null;
   cancellationReason?: string | null;
   cancelledAt?: string | null;
   createdAt: string;
   items: BookingItem[];
+  attendees?: BookingAttendeeRecord[];
   tickets?: TicketPass[];
 }
 

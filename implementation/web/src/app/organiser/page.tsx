@@ -16,6 +16,12 @@ import {
   type Venue
 } from "@nightlifez/shared";
 import { AppHeader } from "@/components/AppHeader";
+import {
+  OrganiserApprovalsPanel,
+  OrganiserGuestListPanel,
+  OrganiserQuestionBuilder,
+  OrganiserStorefrontPanel
+} from "@/components/OrganiserMilestonePanel";
 
 interface OrganiserOverview {
   organizations: Organization[];
@@ -33,9 +39,16 @@ export default function OrganiserPortalPage() {
   const [data, setData] = useState<OrganiserOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"analytics" | "events" | "offers" | "orders" | "staff" | "finance">("analytics");
+  const [tab, setTab] = useState<
+    "analytics" | "storefront" | "events" | "approvals" | "guests" | "offers" | "orders" | "staff" | "finance"
+  >("analytics");
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [evtApprovalRequired, setEvtApprovalRequired] = useState(false);
+  const [evtVisibility, setEvtVisibility] = useState<"PUBLIC" | "UNLISTED" | "INVITE_ONLY">("PUBLIC");
+  const [dupTargetId, setDupTargetId] = useState<string | null>(null);
+  const [dupDateLabel, setDupDateLabel] = useState("Sat, 16 Jan · 7:00 PM");
+  const [questionEventId, setQuestionEventId] = useState<string | null>(null);
 
   // Create Event form state
   const [evtTitle, setEvtTitle] = useState("");
@@ -115,6 +128,8 @@ export default function OrganiserPortalPage() {
         dateLabel: evtDateLabel,
         summary: evtSummary,
         lifecycleStatus: "PUBLISHED",
+        visibility: evtVisibility,
+        approvalRequired: evtApprovalRequired,
         activePhase: "GENERAL_SALE",
         tiers: [
           {
@@ -162,6 +177,27 @@ export default function OrganiserPortalPage() {
       setNotice(`Updated "${evt.title}" to ${nextStatus}.`);
       await loadOverview();
     }
+  }
+
+  async function handleDuplicateEvent(sourceEventId: string) {
+    setNotice(null);
+    const res = await fetch(`/api/organiser/events/${encodeURIComponent(sourceEventId)}/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startsAt: "2027-01-16T19:00:00+05:30",
+        endsAt: "2027-01-16T23:00:00+05:30",
+        dateLabel: dupDateLabel
+      })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setNotice(json?.error ?? "Could not duplicate event");
+      return;
+    }
+    setDupTargetId(null);
+    setNotice(`Duplicated as DRAFT: "${json.event.title}". Review and publish when ready.`);
+    await loadOverview();
   }
 
   async function handleCreateOffer(e: React.FormEvent) {
@@ -313,7 +349,7 @@ export default function OrganiserPortalPage() {
             ) : null}
 
             <div className="flex flex-wrap gap-2">
-              {(["analytics", "events", "offers", "orders", "staff", "finance"] as const).map((t) => (
+              {(["analytics", "storefront", "events", "approvals", "guests", "offers", "orders", "staff", "finance"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -385,6 +421,35 @@ export default function OrganiserPortalPage() {
               </section>
             ) : null}
 
+            {tab === "storefront" && data.organizations.length > 0 ? (
+              <OrganiserStorefrontPanel
+                org={data.organizations.find((o) => o.id === selectedOrgId) ?? data.organizations[0]!}
+                onSaved={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
+            {tab === "approvals" ? (
+              <OrganiserApprovalsPanel
+                onUpdated={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
+            {tab === "guests" ? (
+              <OrganiserGuestListPanel
+                events={data.events}
+                onUpdated={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
             {tab === "events" ? (
               <section className="grid gap-6 lg:grid-cols-12">
                 <form onSubmit={handleCreateEvent} className="space-y-3 rounded-2xl border border-[#e4e6f0] bg-white p-5 lg:col-span-5">
@@ -437,6 +502,21 @@ export default function OrganiserPortalPage() {
                     <input type="number" value={tierPrice} onChange={(e) => setTierPrice(e.target.value)} placeholder="Price INR" className="rounded-xl border border-[#e4e6f0] px-2 py-2 text-xs" />
                     <input type="number" value={tierQuota} onChange={(e) => setTierQuota(e.target.value)} placeholder="Quota" className="rounded-xl border border-[#e4e6f0] px-2 py-2 text-xs" />
                   </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <label className="flex items-center gap-1.5 font-bold text-[#374151]">
+                      <input type="checkbox" checked={evtApprovalRequired} onChange={(e) => setEvtApprovalRequired(e.target.checked)} />
+                      Require Guest Approval
+                    </label>
+                    <select
+                      value={evtVisibility}
+                      onChange={(e) => setEvtVisibility(e.target.value as "PUBLIC" | "UNLISTED" | "INVITE_ONLY")}
+                      className="rounded-lg border border-[#e4e6f0] bg-white px-2 py-1 text-xs font-bold"
+                    >
+                      <option value="PUBLIC">Public</option>
+                      <option value="UNLISTED">Unlisted Link</option>
+                      <option value="INVITE_ONLY">Invite Only</option>
+                    </select>
+                  </div>
                   <button type="submit" className="w-full rounded-xl bg-[#5b3df5] py-2.5 text-xs font-extrabold text-white">
                     Publish Event
                   </button>
@@ -452,10 +532,39 @@ export default function OrganiserPortalPage() {
                         </div>
                         <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
                           <Link href={`/events/${evt.slug}`} className="rounded-lg border border-[#e4e6f0] px-2.5 py-1">Preview</Link>
+                          <button type="button" onClick={() => setDupTargetId(dupTargetId === evt.id ? null : evt.id)} className="rounded-lg border border-[#5b3df5] px-2.5 py-1 text-[#5b3df5]">Run it again</button>
+                          <button type="button" onClick={() => setQuestionEventId(questionEventId === evt.id ? null : evt.id)} className="rounded-lg border border-[#e4e6f0] px-2.5 py-1">Questions</button>
                           <button type="button" onClick={() => void handleLifecycleToggle(evt, "PAUSED")} className="rounded-lg border border-[#d97706] px-2.5 py-1 text-[#d97706]">Pause</button>
                           <button type="button" onClick={() => void handleLifecycleToggle(evt, "PUBLISHED")} className="rounded-lg border border-[#16a34a] px-2.5 py-1 text-[#16a34a]">Publish</button>
                         </div>
                       </div>
+                      {dupTargetId === evt.id ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#efeafe] p-3 text-xs">
+                          <input
+                            type="text"
+                            value={dupDateLabel}
+                            onChange={(e) => setDupDateLabel(e.target.value)}
+                            placeholder="New date label"
+                            className="flex-1 rounded-lg border border-[#e4e6f0] bg-white px-2.5 py-1.5 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleDuplicateEvent(evt.id)}
+                            className="rounded-lg bg-[#5b3df5] px-3 py-1.5 font-bold text-white"
+                          >
+                            Create Draft Copy
+                          </button>
+                        </div>
+                      ) : null}
+                      {questionEventId === evt.id ? (
+                        <OrganiserQuestionBuilder
+                          event={evt}
+                          onSaved={async (msg) => {
+                            setNotice(msg);
+                            await loadOverview();
+                          }}
+                        />
+                      ) : null}
                     </div>
                   ))}
                 </div>

@@ -1108,6 +1108,17 @@ export const SEED_ORGANIZATIONS = [
     approvalStatus: "APPROVED" as const,
     rating: 92,
     tenureLabel: "2 years hosting",
+    bioIntro: "Curated open-air concerts, electronic showcases, and underground club nights across Bengaluru & Coimbatore.",
+    coverArtworkUrl: "/art/evt-solstice.svg",
+    instagramHandle: "@nightlifez.originals",
+    publicContactPhone: "+91 80 4123 9000",
+    publicContactEmail: "hello@nightlifez.test",
+    socialLinks: [
+      { platform: "Instagram", url: "https://instagram.com/nightlifez.originals" },
+      { platform: "Website", url: "https://nightlifez.com" }
+    ],
+    promotedListingsEnabled: true,
+    promotedEventSlugs: ["harbor-afterhours-mumbai-2026"],
     createdBy: "usr-organiser-owner",
     createdAt: "2026-01-15T10:00:00Z"
   },
@@ -1121,6 +1132,14 @@ export const SEED_ORGANIZATIONS = [
     approvalStatus: "APPROVED" as const,
     rating: 89,
     tenureLabel: "3 years hosting",
+    bioIntro: "Waterfront comedy specials, late-night electronic rooms, and harbourfront cultural gatherings in Mumbai.",
+    coverArtworkUrl: "/art/venue-harbor.svg",
+    instagramHandle: "@harbor.collective",
+    publicContactPhone: "+91 22 4099 8811",
+    publicContactEmail: "events@harborcollective.test",
+    socialLinks: [{ platform: "Instagram", url: "https://instagram.com/harbor.collective" }],
+    promotedListingsEnabled: false,
+    promotedEventSlugs: [],
     createdBy: "usr-organiser-owner",
     createdAt: "2026-02-10T10:00:00Z"
   },

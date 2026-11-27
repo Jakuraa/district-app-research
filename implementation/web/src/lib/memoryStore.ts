@@ -9,6 +9,8 @@ import {
   SEED_VENUES,
   SYNTHETIC_QA_IDENTITIES,
   type AuditLogEntry,
+  type BookingAttendeeRecord,
+  type BookingQuestion,
   type BookingRecord,
   type City,
   type FeatureFlag,
@@ -71,6 +73,8 @@ export interface MemoryStore {
   staffInvitations: StaffInvitation[];
   holds: InventoryHold[];
   bookings: BookingRecord[];
+  bookingQuestions: BookingQuestion[];
+  bookingAttendees: BookingAttendeeRecord[];
   idempotencyIndex: Map<string, string>;
   tickets: TicketPass[];
   scanLogs: TicketScanLog[];
@@ -124,7 +128,10 @@ function createInitialStore(): MemoryStore {
       evt.organizerName === "Harbor Collective"
         ? "org-harbor-collective"
         : "org-nightlifez-originals",
-    lifecycleStatus: "PUBLISHED" as const
+    lifecycleStatus: "PUBLISHED" as const,
+    visibility: "PUBLIC" as const,
+    approvalRequired: false,
+    clonedFromEventId: null
   }));
 
   const venues = structuredClone(SEED_VENUES).map((v) => ({
@@ -153,6 +160,8 @@ function createInitialStore(): MemoryStore {
     staffInvitations: [],
     holds: [],
     bookings: [],
+    bookingQuestions: [],
+    bookingAttendees: [],
     idempotencyIndex: new Map(),
     tickets: [],
     scanLogs: [],

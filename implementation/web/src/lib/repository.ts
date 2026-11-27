@@ -16,8 +16,10 @@ import {
   SEED_MOVIES,
   SEED_RESTAURANTS,
   SEED_VENUES,
+  validateAttendeeQuestionAnswers,
   type Activity,
   type Artist,
+  type BookingAttendeeRecord,
   type BookingRecord,
   type City,
   type CreateBookingInput,
@@ -40,6 +42,7 @@ import { getPool } from "./db.ts";
 import { ensureSchemaBootstrapped } from "./bootstrapDb.ts";
 import { getMemoryStore } from "./memoryStore.ts";
 import { executeDemoPaymentAdapter } from "./paymentAdapter.ts";
+import { listBookingAttendees, listEventQuestions } from "./sellerGuestService.ts";
 
 const seedEventMap = new Map(SEED_EVENTS.map((e) => [e.slug, e]));
 const seedVenueMap = new Map(SEED_VENUES.map((v) => [v.slug, v]));
@@ -62,6 +65,9 @@ function mapRowToEvent(
     venueName: String(row.venue_name),
     organizationId: row.organization_id ? String(row.organization_id) : "org-nightlifez-originals",
     lifecycleStatus: (row.lifecycle_status as PulseEvent["lifecycleStatus"]) ?? "PUBLISHED",
+    visibility: (row.visibility as PulseEvent["visibility"]) ?? "PUBLIC",
+    approvalRequired: Boolean(row.approval_required),
+    clonedFromEventId: row.cloned_from_event_id ? String(row.cloned_from_event_id) : null,
     moderationNotes: row.moderation_notes ? String(row.moderation_notes) : null,
     startsAt: new Date(String(row.starts_at)).toISOString(),
     endsAt: new Date(String(row.ends_at)).toISOString(),
@@ -153,7 +159,11 @@ function mapTicketRow(row: Record<string, unknown>): TicketPass {
 }
 
 function filterAndSortEvents(events: PulseEvent[], query: EventQueryInput, includeNonPublished = false): PulseEvent[] {
-  let result = events.filter((e) => includeNonPublished || (e.lifecycleStatus ?? "PUBLISHED") === "PUBLISHED");
+  let result = events.filter(
+    (e) =>
+      includeNonPublished ||
+      ((e.lifecycleStatus ?? "PUBLISHED") === "PUBLISHED" && (e.visibility ?? "PUBLIC") === "PUBLIC")
+  );
   if (query.city && query.city !== "all") {
     result = result.filter((e) => e.citySlug === query.city);
   }
@@ -597,6 +607,7 @@ export async function listBookings(filters?: {
     }
     return list.map((b) => ({
       ...b,
+      attendees: store.bookingAttendees.filter((a) => a.bookingId === b.id),
       tickets: store.tickets.filter((t) => t.bookingId === b.id)
     }));
   }
@@ -628,9 +639,10 @@ export async function listBookings(filters?: {
   if (bRes.rows.length === 0) return [];
 
   const ids = bRes.rows.map((r) => String(r.id));
-  const [itemRes, ticketRes] = await Promise.all([
+  const [itemRes, ticketRes, attendeesByBooking] = await Promise.all([
     pool.query("SELECT * FROM booking_items WHERE booking_id = ANY($1::text[])", [ids]),
-    pool.query("SELECT * FROM tickets WHERE booking_id = ANY($1::text[])", [ids])
+    pool.query("SELECT * FROM tickets WHERE booking_id = ANY($1::text[])", [ids]),
+    listBookingAttendees(ids)
   ]);
 
   const itemsByBooking = new Map<string, BookingRecord["items"]>();
@@ -677,10 +689,20 @@ export async function listBookings(filters?: {
     paymentMode: "DEMO_NO_CHARGE",
     paymentStatus: (r.payment_status as BookingRecord["paymentStatus"]) ?? "CONFIRMED",
     paymentRef: r.payment_ref ? String(r.payment_ref) : null,
+    paymentChannel: (r.payment_channel as BookingRecord["paymentChannel"]) ?? "DEMO_SANDBOX",
+    bookingSource: (r.booking_source as BookingRecord["bookingSource"]) ?? "ONLINE",
+    approvalStatus: (r.approval_status as BookingRecord["approvalStatus"]) ?? "NOT_REQUIRED",
+    approvalToken: r.approval_token ? String(r.approval_token) : null,
+    approvalExpiresAt: r.approval_expires_at ? new Date(String(r.approval_expires_at)).toISOString() : null,
+    approvedAt: r.approved_at ? new Date(String(r.approved_at)).toISOString() : null,
+    rejectedAt: r.rejected_at ? new Date(String(r.rejected_at)).toISOString() : null,
+    approvedBy: r.approved_by ? String(r.approved_by) : null,
+    rejectionReason: r.rejection_reason ? String(r.rejection_reason) : null,
     cancellationReason: r.cancellation_reason ? String(r.cancellation_reason) : null,
     cancelledAt: r.cancelled_at ? new Date(String(r.cancelled_at)).toISOString() : null,
     createdAt: new Date(String(r.created_at)).toISOString(),
     items: itemsByBooking.get(String(r.id)) ?? [],
+    attendees: attendeesByBooking.get(String(r.id)) ?? [],
     tickets: ticketsByBooking.get(String(r.id)) ?? []
   }));
 }
@@ -714,11 +736,54 @@ export async function createDemoBooking(
     throw new Error(breakdown.offerRejectionReason);
   }
 
-  const paymentAttempt = await executeDemoPaymentAdapter({
-    amountInr: breakdown.totalInr,
-    simulateOutcome: input.simulatePaymentOutcome
-  });
-  if (paymentAttempt.state === "FAILED") {
+  const questions = await listEventQuestions(event.id);
+  const rawAttendees = input.attendees && input.attendees.length > 0
+    ? input.attendees
+    : input.items.flatMap((item) =>
+        Array.from({ length: item.quantity }, () => ({
+          tierId: item.tierId,
+          fullName: input.attendeeName,
+          email: input.attendeeEmail,
+          phone: null,
+          answers: {}
+        }))
+      );
+
+  if (rawAttendees.length !== breakdown.totalQuantity) {
+    throw new Error(`Expected ${breakdown.totalQuantity} attendee record(s), received ${rawAttendees.length}.`);
+  }
+
+  const validatedAttendees: Omit<BookingAttendeeRecord, "id" | "bookingId" | "ticketId" | "createdAt">[] = [];
+  for (let idx = 0; idx < rawAttendees.length; idx++) {
+    const att = rawAttendees[idx]!;
+    const qValidation = validateAttendeeQuestionAnswers(questions, att.answers, `Attendee ${idx + 1} (${att.fullName})`);
+    if (!qValidation.valid) {
+      throw new Error(qValidation.errors.join(" "));
+    }
+    validatedAttendees.push({
+      eventId: event.id,
+      tierId: att.tierId,
+      attendeeIndex: idx,
+      fullName: att.fullName,
+      email: att.email.toLowerCase(),
+      phone: att.phone ?? null,
+      answers: qValidation.sanitized
+    });
+  }
+
+  const requiresApproval = Boolean(event.approvalRequired);
+  const paymentAttempt = requiresApproval
+    ? {
+        state: "PENDING" as const,
+        mode: "DEMO_NO_CHARGE" as const,
+        transactionRef: null,
+        message: "Awaiting organiser approval before payment."
+      }
+    : await executeDemoPaymentAdapter({
+        amountInr: breakdown.totalInr,
+        simulateOutcome: input.simulatePaymentOutcome
+      });
+  if (!requiresApproval && paymentAttempt.state === "FAILED") {
     throw new Error(paymentAttempt.message);
   }
 
@@ -757,12 +822,16 @@ export async function createDemoBooking(
         throw new Error(`Maximum ${tier.maxPerOrder} tickets allowed for ${tier.name}.`);
       }
       const coveredByHold =
-        activeHold && activeHold.tierId === tier.id ? Math.min(sel.quantity, activeHold.quantity) : 0;
+        !requiresApproval && activeHold && activeHold.tierId === tier.id
+          ? Math.min(sel.quantity, activeHold.quantity)
+          : 0;
       const netDelta = sel.quantity - coveredByHold;
       if (tier.remainingQuota < netDelta) {
         throw new Error(`Insufficient quota remaining for ${tier.name}.`);
       }
-      tier.remainingQuota -= netDelta;
+      if (!requiresApproval) {
+        tier.remainingQuota -= netDelta;
+      }
       items.push({
         tierId: tier.id,
         tierName: tier.name,
@@ -772,31 +841,56 @@ export async function createDemoBooking(
       });
     }
 
-    if (activeHold) {
+    if (activeHold && !requiresApproval) {
       activeHold.status = "CONVERTED";
     }
 
     const tickets: TicketPass[] = [];
-    for (const item of items) {
-      for (let i = 0; i < item.quantity; i++) {
-        const ticketId = `tkt_${crypto.randomUUID().slice(0, 12)}`;
-        const ticketCode = `NLZ-TKT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-        const seatLabel = item.seatLabels?.[i] ?? null;
-        tickets.push({
-          id: ticketId,
+    const attendeeRecords: BookingAttendeeRecord[] = [];
+    let attCursor = 0;
+
+    if (!requiresApproval) {
+      for (const item of items) {
+        for (let i = 0; i < item.quantity; i++) {
+          const vAtt = validatedAttendees[attCursor++];
+          const ticketId = `tkt_${crypto.randomUUID().slice(0, 12)}`;
+          const ticketCode = `NLZ-TKT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+          const seatLabel = item.seatLabels?.[i] ?? null;
+          tickets.push({
+            id: ticketId,
+            bookingId,
+            eventId: event.id,
+            eventTitle: event.title,
+            tierId: item.tierId,
+            tierName: item.tierName,
+            holderName: vAtt?.fullName ?? input.attendeeName,
+            holderEmail: vAtt?.email ?? input.attendeeEmail,
+            ticketCode,
+            qrToken: signQrPayload(ticketId, event.id, ticketCode),
+            seatLabel,
+            status: "VALID",
+            checkedInAt: null,
+            checkedInBy: null
+          });
+          if (vAtt) {
+            attendeeRecords.push({
+              id: `att_${crypto.randomUUID().slice(0, 10)}`,
+              bookingId,
+              ...vAtt,
+              ticketId,
+              createdAt: nowIso
+            });
+          }
+        }
+      }
+    } else {
+      for (const vAtt of validatedAttendees) {
+        attendeeRecords.push({
+          id: `att_${crypto.randomUUID().slice(0, 10)}`,
           bookingId,
-          eventId: event.id,
-          eventTitle: event.title,
-          tierId: item.tierId,
-          tierName: item.tierName,
-          holderName: input.attendeeName,
-          holderEmail: input.attendeeEmail,
-          ticketCode,
-          qrToken: signQrPayload(ticketId, event.id, ticketCode),
-          seatLabel,
-          status: "VALID",
-          checkedInAt: null,
-          checkedInBy: null
+          ...vAtt,
+          ticketId: null,
+          createdAt: nowIso
         });
       }
     }
@@ -819,21 +913,38 @@ export async function createDemoBooking(
       convenienceFeeInr: breakdown.convenienceFeeInr,
       gstInr: breakdown.gstInr,
       totalInr: breakdown.totalInr,
-      status: "CONFIRMED_DEMO",
+      status: requiresApproval ? "PENDING_APPROVAL" : "CONFIRMED_DEMO",
       paymentMode: "DEMO_NO_CHARGE",
-      paymentStatus: "CONFIRMED",
+      paymentStatus: requiresApproval ? "PENDING" : "CONFIRMED",
       paymentRef: paymentAttempt.transactionRef,
+      paymentChannel: "DEMO_SANDBOX",
+      bookingSource: "ONLINE",
+      approvalStatus: requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
       createdAt: nowIso,
       items,
+      attendees: attendeeRecords,
       tickets
     };
     store.bookings.unshift(record);
+    store.bookingAttendees.push(...attendeeRecords);
     store.tickets.push(...tickets);
     if (input.idempotencyKey) {
       store.idempotencyIndex.set(input.idempotencyKey, bookingId);
     }
 
-    store.ledger.unshift(
+    if (requiresApproval) {
+      store.notifications.unshift({
+        id: `ntf_${crypto.randomUUID().slice(0, 10)}`,
+        userId: null,
+        audience: "ORGANISER",
+        title: `Approval request: ${event.title}`,
+        body: `${input.attendeeName} (${refCode}) requested ${breakdown.totalQuantity} pass(es).`,
+        kind: "BOOKING",
+        isRead: false,
+        createdAt: nowIso
+      });
+    } else {
+      store.ledger.unshift(
       {
         id: `led_${crypto.randomUUID().slice(0, 10)}`,
         organizationId: record.organizationId ?? null,
@@ -874,6 +985,7 @@ export async function createDemoBooking(
         createdAt: nowIso
       }
     );
+    }
 
     return record;
   }
@@ -922,14 +1034,14 @@ export async function createDemoBooking(
         throw new Error(`Maximum ${Number(row.max_per_order)} tickets allowed for ${String(row.name)}.`);
       }
       const coveredByHold =
-        holdRow && String(holdRow.tier_id) === sel.tierId
+        !requiresApproval && holdRow && String(holdRow.tier_id) === sel.tierId
           ? Math.min(sel.quantity, Number(holdRow.quantity))
           : 0;
       const netDelta = sel.quantity - coveredByHold;
       if (Number(row.remaining_quota) < netDelta) {
         throw new Error(`Insufficient quota remaining for ${String(row.name)}.`);
       }
-      if (netDelta !== 0) {
+      if (!requiresApproval && netDelta !== 0) {
         await client.query(
           "UPDATE ticket_tiers SET remaining_quota = remaining_quota - $1 WHERE id = $2",
           [netDelta, sel.tierId]
@@ -944,7 +1056,7 @@ export async function createDemoBooking(
       });
     }
 
-    if (holdRow) {
+    if (holdRow && !requiresApproval) {
       await client.query("UPDATE inventory_holds SET status = 'CONVERTED' WHERE id = $1", [
         String(holdRow.id)
       ]);
@@ -955,8 +1067,9 @@ export async function createDemoBooking(
          id, reference_code, user_id, organization_id, idempotency_key, hold_id,
          attendee_email, attendee_name, event_id, event_slug,
          event_title, venue_name, date_label, offer_code, subtotal_inr, discount_inr,
-         convenience_fee_inr, gst_inr, total_inr, status, payment_mode, payment_status, payment_ref
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'CONFIRMED_DEMO','DEMO_NO_CHARGE','CONFIRMED',$20)
+         convenience_fee_inr, gst_inr, total_inr, status, payment_mode, payment_status, payment_ref,
+         approval_status, booking_source, payment_channel
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'DEMO_NO_CHARGE',$21,$22,$23,'ONLINE','DEMO_SANDBOX')
        RETURNING created_at`,
       [
         bookingId,
@@ -978,11 +1091,16 @@ export async function createDemoBooking(
         breakdown.convenienceFeeInr,
         breakdown.gstInr,
         breakdown.totalInr,
-        paymentAttempt.transactionRef
+        requiresApproval ? "PENDING_APPROVAL" : "CONFIRMED_DEMO",
+        requiresApproval ? "PENDING" : "CONFIRMED",
+        paymentAttempt.transactionRef,
+        requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED"
       ]
     );
 
     const tickets: TicketPass[] = [];
+    const attendeeRecords: BookingAttendeeRecord[] = [];
+    let attCursor = 0;
     for (const item of items) {
       await client.query(
         `INSERT INTO booking_items (booking_id, tier_id, tier_name, quantity, unit_price_inr, seat_labels_json)
@@ -991,66 +1109,99 @@ export async function createDemoBooking(
       );
 
       for (let i = 0; i < item.quantity; i++) {
-        const ticketId = `tkt_${crypto.randomUUID().slice(0, 12)}`;
-        const ticketCode = `NLZ-TKT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-        const qrToken = signQrPayload(ticketId, event.id, ticketCode);
-        const seatLabel = item.seatLabels?.[i] ?? null;
-        await client.query(
-          `INSERT INTO tickets (id, booking_id, event_id, tier_id, tier_name, holder_name, holder_email, ticket_code, qr_token, seat_label, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'VALID')`,
-          [ticketId, bookingId, event.id, item.tierId, item.tierName, input.attendeeName, input.attendeeEmail, ticketCode, qrToken, seatLabel]
-        );
-        tickets.push({
-          id: ticketId,
-          bookingId,
-          eventId: event.id,
-          eventTitle: event.title,
-          tierId: item.tierId,
-          tierName: item.tierName,
-          holderName: input.attendeeName,
-          holderEmail: input.attendeeEmail,
-          ticketCode,
-          qrToken,
-          seatLabel,
-          status: "VALID",
-          checkedInAt: null,
-          checkedInBy: null
-        });
+        const vAtt = validatedAttendees[attCursor++];
+        let issuedTicketId: string | null = null;
+        if (!requiresApproval) {
+          const ticketId = `tkt_${crypto.randomUUID().slice(0, 12)}`;
+          const ticketCode = `NLZ-TKT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+          const qrToken = signQrPayload(ticketId, event.id, ticketCode);
+          const seatLabel = item.seatLabels?.[i] ?? null;
+          await client.query(
+            `INSERT INTO tickets (id, booking_id, event_id, tier_id, tier_name, holder_name, holder_email, ticket_code, qr_token, seat_label, status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'VALID')`,
+            [ticketId, bookingId, event.id, item.tierId, item.tierName, vAtt?.fullName ?? input.attendeeName, vAtt?.email ?? input.attendeeEmail, ticketCode, qrToken, seatLabel]
+          );
+          issuedTicketId = ticketId;
+          tickets.push({
+            id: ticketId,
+            bookingId,
+            eventId: event.id,
+            eventTitle: event.title,
+            tierId: item.tierId,
+            tierName: item.tierName,
+            holderName: vAtt?.fullName ?? input.attendeeName,
+            holderEmail: vAtt?.email ?? input.attendeeEmail,
+            ticketCode,
+            qrToken,
+            seatLabel,
+            status: "VALID",
+            checkedInAt: null,
+            checkedInBy: null
+          });
+        }
+        if (vAtt) {
+          const attId = `att_${crypto.randomUUID().slice(0, 10)}`;
+          await client.query(
+            `INSERT INTO booking_attendees (id, booking_id, event_id, tier_id, attendee_index, full_name, email, phone, answers_json, ticket_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
+            [attId, bookingId, event.id, item.tierId, vAtt.attendeeIndex, vAtt.fullName, vAtt.email, vAtt.phone, JSON.stringify(vAtt.answers), issuedTicketId]
+          );
+          attendeeRecords.push({
+            id: attId,
+            bookingId,
+            ...vAtt,
+            ticketId: issuedTicketId,
+            createdAt: nowIso
+          });
+        }
       }
     }
 
-    await client.query(
-      `INSERT INTO payment_records (id, booking_id, provider, mode, amount_inr, state, transaction_ref)
-       VALUES ($1,$2,'DEMO_SANDBOX','DEMO_NO_CHARGE',$3,'CONFIRMED',$4)`,
-      [`pay_${crypto.randomUUID().slice(0, 10)}`, bookingId, breakdown.totalInr, paymentAttempt.transactionRef]
-    );
+    if (!requiresApproval) {
+      await client.query(
+        `INSERT INTO payment_records (id, booking_id, provider, mode, amount_inr, state, transaction_ref)
+         VALUES ($1,$2,'DEMO_SANDBOX','DEMO_NO_CHARGE',$3,'CONFIRMED',$4)`,
+        [`pay_${crypto.randomUUID().slice(0, 10)}`, bookingId, breakdown.totalInr, paymentAttempt.transactionRef]
+      );
 
-    const orgId = event.organizationId ?? "org-nightlifez-originals";
-    const netSale = Math.max(0, breakdown.subtotalInr - breakdown.discountInr);
-    await client.query(
-      `INSERT INTO ledger_entries (id, organization_id, booking_id, entry_type, amount_inr, note)
-       VALUES ($1,$2,$3,'TICKET_SALE',$4,$5), ($6,$2,$3,'PLATFORM_FEE',$7,$8), ($9,$2,$3,'GST',$10,$11)`,
-      [
-        `led_${crypto.randomUUID().slice(0, 10)}`,
-        orgId,
-        bookingId,
-        netSale,
-        `Demo ticket sale ${refCode}`,
-        `led_${crypto.randomUUID().slice(0, 10)}`,
-        breakdown.convenienceFeeInr,
-        `Platform convenience fee ${refCode}`,
-        `led_${crypto.randomUUID().slice(0, 10)}`,
-        breakdown.gstInr,
-        `GST on platform fee ${refCode}`
-      ]
-    );
+      const orgId = event.organizationId ?? "org-nightlifez-originals";
+      const netSale = Math.max(0, breakdown.subtotalInr - breakdown.discountInr);
+      await client.query(
+        `INSERT INTO ledger_entries (id, organization_id, booking_id, entry_type, amount_inr, note)
+         VALUES ($1,$2,$3,'TICKET_SALE',$4,$5), ($6,$2,$3,'PLATFORM_FEE',$7,$8), ($9,$2,$3,'GST',$10,$11)`,
+        [
+          `led_${crypto.randomUUID().slice(0, 10)}`,
+          orgId,
+          bookingId,
+          netSale,
+          `Demo ticket sale ${refCode}`,
+          `led_${crypto.randomUUID().slice(0, 10)}`,
+          breakdown.convenienceFeeInr,
+          `Platform convenience fee ${refCode}`,
+          `led_${crypto.randomUUID().slice(0, 10)}`,
+          breakdown.gstInr,
+          `GST on platform fee ${refCode}`
+        ]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO notifications (id, user_id, audience, title, body, kind, is_read, created_at)
+         VALUES ($1,NULL,'ORGANISER',$2,$3,'BOOKING',FALSE,$4)`,
+        [
+          `ntf_${crypto.randomUUID().slice(0, 10)}`,
+          `Approval request: ${event.title}`,
+          `${input.attendeeName} (${refCode}) requested ${breakdown.totalQuantity} pass(es).`,
+          nowIso
+        ]
+      );
+    }
 
     await client.query("COMMIT");
     return {
       id: bookingId,
       referenceCode: refCode,
       userId: options.userId ?? null,
-      organizationId: orgId,
+      organizationId: event.organizationId ?? "org-nightlifez-originals",
       attendeeEmail: input.attendeeEmail,
       attendeeName: input.attendeeName,
       eventId: event.id,
@@ -1064,12 +1215,16 @@ export async function createDemoBooking(
       convenienceFeeInr: breakdown.convenienceFeeInr,
       gstInr: breakdown.gstInr,
       totalInr: breakdown.totalInr,
-      status: "CONFIRMED_DEMO",
+      status: requiresApproval ? "PENDING_APPROVAL" : "CONFIRMED_DEMO",
       paymentMode: "DEMO_NO_CHARGE",
-      paymentStatus: "CONFIRMED",
+      paymentStatus: requiresApproval ? "PENDING" : "CONFIRMED",
       paymentRef: paymentAttempt.transactionRef,
+      paymentChannel: "DEMO_SANDBOX",
+      bookingSource: "ONLINE",
+      approvalStatus: requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
       createdAt: new Date(String(insertRes.rows[0].created_at)).toISOString(),
       items,
+      attendees: attendeeRecords,
       tickets
     };
   } catch (err) {
@@ -1091,14 +1246,17 @@ export async function cancelDemoBooking(id: string, reason?: string): Promise<Bo
     if (!canTransitionBookingStatus(existing.status, "CANCELLED")) {
       throw new Error(`Cannot cancel booking in state ${existing.status}.`);
     }
+    const prevStatus = existing.status;
     existing.status = "CANCELLED";
     existing.cancellationReason = reason ?? "Cancelled by attendee";
     existing.cancelledAt = nowIso;
-    const evt = store.events.find((e) => e.id === existing.eventId);
-    if (evt) {
-      for (const item of existing.items) {
-        const tier = evt.tiers.find((t) => t.id === item.tierId);
-        if (tier) tier.remainingQuota += item.quantity;
+    if (prevStatus === "CONFIRMED_DEMO") {
+      const evt = store.events.find((e) => e.id === existing.eventId);
+      if (evt) {
+        for (const item of existing.items) {
+          const tier = evt.tiers.find((t) => t.id === item.tierId);
+          if (tier) tier.remainingQuota += item.quantity;
+        }
       }
     }
     for (const t of store.tickets) {
@@ -1130,11 +1288,13 @@ export async function cancelDemoBooking(id: string, reason?: string): Promise<Bo
         "UPDATE tickets SET status = 'CANCELLED' WHERE booking_id = $1 AND status = 'VALID'",
         [id]
       );
-      for (const item of itemRes.rows) {
-        await client.query(
-          "UPDATE ticket_tiers SET remaining_quota = remaining_quota + $1 WHERE id = $2",
-          [Number(item.quantity), String(item.tier_id)]
-        );
+      if (currentStatus === "CONFIRMED_DEMO") {
+        for (const item of itemRes.rows) {
+          await client.query(
+            "UPDATE ticket_tiers SET remaining_quota = remaining_quota + $1 WHERE id = $2",
+            [Number(item.quantity), String(item.tier_id)]
+          );
+        }
       }
     }
 

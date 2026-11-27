@@ -7,3 +7,4 @@ export * from "./seed.ts";
 export * from "./phone.ts";
 export * from "./qa-directory.ts";
 export * from "./api-client.ts";
+export * from "./questions.ts";

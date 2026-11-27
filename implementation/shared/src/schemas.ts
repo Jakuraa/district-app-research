@@ -29,6 +29,21 @@ export const bookingItemInputSchema = z.object({
   seatLabels: z.array(z.string().trim().min(1).max(16)).max(10).optional()
 });
 
+export const attendeeAnswerValueSchema = z.union([
+  z.string().max(1000),
+  z.number(),
+  z.boolean(),
+  z.array(z.string().max(200)).max(20)
+]);
+
+export const bookingAttendeeInputSchema = z.object({
+  tierId: z.string().trim().min(1),
+  fullName: z.string().trim().min(2).max(80),
+  email: z.string().trim().email().max(120),
+  phone: z.string().trim().max(24).optional().nullable(),
+  answers: z.record(z.string(), attendeeAnswerValueSchema).default({})
+});
+
 export const createBookingSchema = z.object({
   eventSlug: z.string().trim().min(1),
   attendeeName: z.string().trim().min(2).max(80),
@@ -38,7 +53,8 @@ export const createBookingSchema = z.object({
   holdId: z.string().trim().max(60).optional().nullable(),
   idempotencyKey: z.string().trim().min(4).max(80).optional().nullable(),
   simulatePaymentOutcome: z.enum(["CONFIRMED", "FAILED"]).optional(),
-  items: z.array(bookingItemInputSchema).min(1).max(6)
+  items: z.array(bookingItemInputSchema).min(1).max(6),
+  attendees: z.array(bookingAttendeeInputSchema).max(10).optional()
 });
 
 export const signUpSchema = z.object({
@@ -134,6 +150,8 @@ export const upsertEventSchema = z.object({
   lifecycleStatus: z
     .enum(["DRAFT", "PENDING_APPROVAL", "PUBLISHED", "PAUSED", "CANCELLED"])
     .optional(),
+  visibility: z.enum(["PUBLIC", "UNLISTED", "INVITE_ONLY"]).optional(),
+  approvalRequired: z.boolean().optional(),
   tiers: z
     .array(
       z.object({
@@ -283,3 +301,72 @@ export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type EventQueryInput = z.infer<typeof eventQuerySchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
+
+export const updateOrganizationStorefrontSchema = z.object({
+  bioIntro: z.string().trim().max(500).optional().nullable(),
+  coverArtworkUrl: z.string().trim().max(300).optional().nullable(),
+  instagramHandle: z.string().trim().max(60).optional().nullable(),
+  publicContactPhone: z.string().trim().max(30).optional().nullable(),
+  publicContactEmail: z.string().trim().email().max(120).optional().nullable().or(z.literal("")),
+  socialLinks: z
+    .array(
+      z.object({
+        platform: z.string().trim().min(1).max(30),
+        url: z.string().trim().url().max(300)
+      })
+    )
+    .max(6)
+    .optional(),
+  promotedListingsEnabled: z.boolean().optional(),
+  promotedEventSlugs: z.array(z.string().trim().min(1).max(120)).max(8).optional()
+});
+
+export const duplicateEventSchema = z.object({
+  title: z.string().trim().min(3).max(140).optional(),
+  startsAt: z.string().trim().min(1),
+  endsAt: z.string().trim().min(1),
+  dateLabel: z.string().trim().min(3).max(80),
+  tierQuotas: z
+    .array(
+      z.object({
+        sourceTierId: z.string().trim().min(1),
+        totalQuota: z.number().int().min(1).max(100000)
+      })
+    )
+    .optional()
+});
+
+export const bookingQuestionInputSchema = z.object({
+  id: z.string().trim().optional(),
+  label: z.string().trim().min(2).max(160),
+  fieldType: z.enum(["SHORT_TEXT", "LONG_TEXT", "NUMBER", "DROPDOWN", "MULTI_CHOICE", "CHECKBOX"]),
+  options: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
+  required: z.boolean().default(false),
+  sortOrder: z.number().int().min(0).max(100).default(0)
+});
+
+export const upsertBookingQuestionsSchema = z.object({
+  questions: z.array(bookingQuestionInputSchema).max(20)
+});
+
+export const decideApprovalSchema = z.object({
+  decision: z.enum(["APPROVE", "REJECT"]),
+  reason: z.string().trim().max(400).optional(),
+  expiresInHours: z.number().int().min(1).max(168).default(24)
+});
+
+export const manualGuestSchema = z.object({
+  eventId: z.string().trim().min(1),
+  tierId: z.string().trim().min(1),
+  fullName: z.string().trim().min(2).max(80),
+  email: z.string().trim().email().max(120),
+  phone: z.string().trim().max(24).optional().nullable(),
+  guestType: z.enum(["WALK_IN_CASH", "VIP", "COMPLIMENTARY"]).default("WALK_IN_CASH"),
+  answers: z.record(z.string(), attendeeAnswerValueSchema).default({})
+});
+
+export const csvImportGuestsSchema = z.object({
+  csvText: z.string().trim().min(3).max(200000),
+  defaultTierId: z.string().trim().optional(),
+  defaultGuestType: z.enum(["WALK_IN_CASH", "VIP", "COMPLIMENTARY"]).default("COMPLIMENTARY")
+});

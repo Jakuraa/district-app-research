@@ -29,6 +29,12 @@ export default function StaffScannerPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [canBoxOfficeSell, setCanBoxOfficeSell] = useState(false);
+  const [walkInName, setWalkInName] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
+  const [walkInTierId, setWalkInTierId] = useState("");
+  const [walkInType, setWalkInType] = useState<"WALK_IN_CASH" | "VIP" | "COMPLIMENTARY">("WALK_IN_CASH");
+  const [boxOfficeNotice, setBoxOfficeNotice] = useState<string | null>(null);
 
   async function loadStaffEvents() {
     setLoading(true);
@@ -42,8 +48,10 @@ export default function StaffScannerPage() {
       }
       setEvents(json.events ?? []);
       setRecentScans(json.recentScans ?? []);
+      setCanBoxOfficeSell(Boolean(json.canBoxOfficeSell));
       if (json.events?.length > 0 && !selectedEventId) {
         setSelectedEventId(json.events[0].id);
+        setWalkInTierId(json.events[0].tiers?.[0]?.id ?? "");
       }
     } finally {
       setLoading(false);
@@ -144,6 +152,35 @@ export default function StaffScannerPage() {
     if (res.ok) {
       setLookupResults(json.tickets ?? []);
     }
+  }
+
+  async function handleBoxOfficeIssue(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedEventId) return;
+    setBoxOfficeNotice(null);
+    const activeEvt = events.find((ev) => ev.id === selectedEventId);
+    const tierId = walkInTierId || activeEvt?.tiers?.[0]?.id || "";
+    const res = await fetch("/api/staff/boxoffice/issue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId: selectedEventId,
+        tierId,
+        fullName: walkInName,
+        email: walkInEmail,
+        guestType: walkInType
+      })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setBoxOfficeNotice(json?.error ?? "Could not issue pass");
+      return;
+    }
+    const code = json.booking?.tickets?.[0]?.ticketCode ?? "ISSUED";
+    setWalkInName("");
+    setWalkInEmail("");
+    setBoxOfficeNotice(`Pass issued: ${code}`);
+    await loadStaffEvents();
   }
 
   return (
@@ -286,6 +323,56 @@ export default function StaffScannerPage() {
                 ))}
               </div>
             </section>
+
+            {canBoxOfficeSell ? (
+              <section className="space-y-3 rounded-2xl border border-[#e4e6f0] bg-white p-5 lg:col-span-12">
+                <h2 className="text-base font-extrabold text-[#111319]">Box-Office Walk-In & Cash Pass Issuance</h2>
+                {boxOfficeNotice ? (
+                  <div className="rounded-xl bg-[#efeafe] px-3 py-2 text-xs font-bold text-[#5b3df5]">
+                    {boxOfficeNotice}
+                  </div>
+                ) : null}
+                <form onSubmit={handleBoxOfficeIssue} className="grid gap-3 sm:grid-cols-5">
+                  <input
+                    type="text"
+                    required
+                    value={walkInName}
+                    onChange={(e) => setWalkInName(e.target.value)}
+                    placeholder="Guest full name"
+                    className="rounded-xl border border-[#e4e6f0] px-3 py-2 text-xs"
+                  />
+                  <input
+                    type="email"
+                    required
+                    value={walkInEmail}
+                    onChange={(e) => setWalkInEmail(e.target.value)}
+                    placeholder="guest@example.com"
+                    className="rounded-xl border border-[#e4e6f0] px-3 py-2 text-xs"
+                  />
+                  <select
+                    value={walkInTierId || events.find((ev) => ev.id === selectedEventId)?.tiers?.[0]?.id || ""}
+                    onChange={(e) => setWalkInTierId(e.target.value)}
+                    className="rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-xs font-bold"
+                  >
+                    {(events.find((ev) => ev.id === selectedEventId)?.tiers ?? []).map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={walkInType}
+                    onChange={(e) => setWalkInType(e.target.value as "WALK_IN_CASH" | "VIP" | "COMPLIMENTARY")}
+                    className="rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-xs font-bold"
+                  >
+                    <option value="WALK_IN_CASH">Walk-In (Cash)</option>
+                    <option value="VIP">VIP Pass</option>
+                    <option value="COMPLIMENTARY">Complimentary</option>
+                  </select>
+                  <button type="submit" className="rounded-xl bg-[#5b3df5] px-4 py-2 text-xs font-extrabold text-white">
+                    Issue Pass
+                  </button>
+                </form>
+              </section>
+            ) : null}
           </div>
         )}
       </main>

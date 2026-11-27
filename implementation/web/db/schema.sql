@@ -57,6 +57,15 @@ CREATE TABLE IF NOT EXISTS organizations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS bio_intro TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS cover_artwork_url TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS instagram_handle TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS public_contact_phone TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS public_contact_email TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS social_links_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS promoted_listings_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS promoted_event_slugs_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 CREATE TABLE IF NOT EXISTS cities (
   slug TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -130,6 +139,22 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS lifecycle_status TEXT NOT NULL DEFAU
 ALTER TABLE events ADD COLUMN IF NOT EXISTS moderation_notes TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE events ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'PUBLIC';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS approval_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS cloned_from_event_id TEXT;
+
+CREATE TABLE IF NOT EXISTS booking_questions (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  field_type TEXT NOT NULL,
+  options_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  required BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_questions_event ON booking_questions (event_id, sort_order ASC);
 
 CREATE TABLE IF NOT EXISTS event_occurrences (
   id TEXT PRIMARY KEY,
@@ -217,8 +242,35 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAU
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_ref TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'NOT_REQUIRED';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS approval_token TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS approval_expires_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_source TEXT NOT NULL DEFAULT 'ONLINE';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_channel TEXT NOT NULL DEFAULT 'DEMO_SANDBOX';
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_idempotency ON bookings (idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_approval_token ON bookings (approval_token) WHERE approval_token IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS booking_attendees (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  tier_id TEXT NOT NULL REFERENCES ticket_tiers(id),
+  attendee_index INTEGER NOT NULL,
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  answers_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ticket_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_attendees_booking ON booking_attendees (booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_attendees_event_email ON booking_attendees (event_id, LOWER(email));
 
 CREATE TABLE IF NOT EXISTS booking_items (
   id SERIAL PRIMARY KEY,
