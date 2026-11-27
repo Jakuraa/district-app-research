@@ -479,3 +479,16 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count INTEGER NOT NULL,
   reset_at TIMESTAMPTZ NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS wallet_recovery_challenges (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL,
+  reference_code TEXT NOT NULL,
+  attendee_email TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ
+);
