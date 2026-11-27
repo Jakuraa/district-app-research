@@ -88,7 +88,12 @@ export async function requestWalletRecoveryChallenge(params: {
     return { ok: false, status: 503, error: "Database is required for wallet recovery." };
   }
 
-  const matches = await listBookings({ email });
+  let matches;
+  try {
+    matches = await listBookings({ email });
+  } catch {
+    return { ok: false, status: 503, error: "Wallet recovery temporarily unavailable." };
+  }
   const booking = matches.find((b) => b.referenceCode.toUpperCase() === ref);
   if (!booking) {
     // Anti-enumeration: do not reveal whether booking exists
