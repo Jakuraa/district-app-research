@@ -412,7 +412,8 @@ export const upsertOrganiserPaymentProfileSchema = z
 export const submitUpiPaymentClaimSchema = z.object({
   claimedPaid: z.literal(true),
   transactionRef: z.string().trim().max(64).optional().nullable(),
-  expectedAmountInr: z.number().int().nonnegative().optional()
+  expectedAmountInr: z.number().int().nonnegative().optional(),
+  claimToken: z.string().trim().min(10).max(512).optional()
 });
 
 export const verifyOrganiserPaymentSchema = z.object({

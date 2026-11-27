@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import {
   buildUpiPaymentUri,
@@ -51,6 +52,8 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
   const [directUpiInfo, setDirectUpiInfo] = useState<PublicOrganiserPaymentInfo | null>(null);
   const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<"DEMO_SANDBOX" | "ORGANISER_UPI">("DEMO_SANDBOX");
   const [upiTxRef, setUpiTxRef] = useState("");
+  const [upiClaimToken, setUpiClaimToken] = useState<string | null>(null);
+  const [upiQrDataUrl, setUpiQrDataUrl] = useState<string | null>(null);
   const [upiClaimSaving, setUpiClaimSaving] = useState(false);
   const [upiClaimMessage, setUpiClaimMessage] = useState<string | null>(null);
   const [attendeeDrafts, setAttendeeDrafts] = useState<
@@ -267,6 +270,9 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
           : "CONFIRMED"
       );
       setConfirmedBooking(json.booking);
+      if (typeof json.claimToken === "string") {
+        setUpiClaimToken(json.claimToken);
+      }
     } catch (err) {
       setPaymentState("FAILED");
       setSubmitError(err instanceof Error ? err.message : "Could not complete reservation");
@@ -287,7 +293,8 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
         body: JSON.stringify({
           claimedPaid: true,
           transactionRef: upiTxRef.trim() || null,
-          expectedAmountInr: confirmedBooking.totalInr
+          expectedAmountInr: confirmedBooking.totalInr,
+          ...(upiClaimToken ? { claimToken: upiClaimToken } : {})
         })
       });
       const json = await res.json();
@@ -300,6 +307,34 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
       setUpiClaimSaving(false);
     }
   }
+
+  useEffect(() => {
+    if (
+      confirmedBooking?.status !== "AWAITING_PAYMENT_VERIFICATION" ||
+      !directUpiInfo?.upiId ||
+      !directUpiInfo?.payeeDisplayName
+    ) {
+      setUpiQrDataUrl(null);
+      return;
+    }
+    const uri = buildUpiPaymentUri({
+      upiId: directUpiInfo.upiId,
+      payeeName: directUpiInfo.payeeDisplayName,
+      amountInr: confirmedBooking.totalInr,
+      referenceCode: confirmedBooking.referenceCode
+    });
+    let cancelled = false;
+    QRCode.toDataURL(uri, { width: 224, margin: 2, errorCorrectionLevel: "M" })
+      .then((url) => {
+        if (!cancelled) setUpiQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setUpiQrDataUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmedBooking, directUpiInfo]);
 
   if (confirmedBooking) {
     const isPendingApproval = confirmedBooking.status === "PENDING_APPROVAL";
@@ -367,32 +402,18 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
             </p>
             <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="shrink-0 rounded-xl border border-[#e4e6f0] bg-white p-2">
-                <svg
-                  viewBox="0 0 21 21"
-                  className="h-28 w-28"
-                  role="img"
-                  aria-label={`UPI QR code for ${directUpiInfo.upiId}`}
-                  data-testid="upi-qr-svg"
-                >
-                  <rect width="21" height="21" fill="#ffffff" />
-                  {/* Finder patterns */}
-                  <path
-                    fill="#111319"
-                    d="M1,1 h5 v5 h-5 z M2,2 v3 h3 v-3 z M3,3 h1 v1 h-1 z M15,1 h5 v5 h-5 z M16,2 v3 h3 v-3 z M17,3 h1 v1 h-1 z M1,15 h5 v5 h-5 z M2,16 v3 h3 v-3 z M3,17 h1 v1 h-1 z"
+                {upiQrDataUrl ? (
+                  <img
+                    src={upiQrDataUrl}
+                    alt={`UPI QR code for ${directUpiInfo.upiId}`}
+                    data-testid="upi-qr-img"
+                    className="h-32 w-32 rounded-lg"
                   />
-                  {/* Deterministic data modules from booking reference & URI */}
-                  {Array.from({ length: 64 }).map((_, idx) => {
-                    const row = 7 + Math.floor(idx / 8);
-                    const col = 7 + (idx % 8);
-                    const seed = (upiUri ?? confirmedBooking.referenceCode).charCodeAt(
-                      idx % (upiUri ?? confirmedBooking.referenceCode).length
-                    );
-                    if ((seed + idx * 7) % 2 === 0) {
-                      return <rect key={idx} x={col} y={row} width="1" height="1" fill="#111319" />;
-                    }
-                    return null;
-                  })}
-                </svg>
+                ) : (
+                  <div className="flex h-32 w-32 items-center justify-center text-[11px] text-[#5e6473]">
+                    Generating QR...
+                  </div>
+                )}
               </div>
               <div className="min-w-0 flex-1 space-y-1.5 text-xs text-[#111319]">
                 <p>

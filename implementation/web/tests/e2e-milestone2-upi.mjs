@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import jsQR from "jsqr";
+import { PNG } from "pngjs";
 import { chromium } from "playwright";
 
 const BASE_URL = process.env.E2E_BASE_URL || "http://127.0.0.1:3100";
@@ -42,11 +44,20 @@ async function runDesktopFlow(browser) {
   await attPage.getByLabel(/Payment Method/i).selectOption("ORGANISER_UPI");
   await attPage.locator('button[type="submit"]:has-text("Reserve & Pay Organiser via UPI")').click();
 
-  // 3. Attendee sees QR + deep link, NO issued tickets yet, submits "I've Paid"
+  // 3. Attendee sees genuine QR + deep link, NO issued tickets yet, submits "I've Paid"
   await attPage.getByTestId("direct-upi-panel").waitFor({ timeout: 10000 });
-  await attPage.getByTestId("upi-qr-svg").waitFor({ timeout: 5000 });
+  const qrImg = attPage.getByTestId("upi-qr-img");
+  await qrImg.waitFor({ timeout: 5000 });
   const deepLinkHref = await attPage.getByTestId("upi-deep-link").getAttribute("href");
   assert.ok(deepLinkHref?.startsWith("upi://pay?"), "Expected upi://pay deep link");
+
+  const qrSrc = await qrImg.getAttribute("src");
+  assert.ok(qrSrc?.startsWith("data:image/png;base64,"), "Expected PNG data URL for genuine QR");
+  const qrPng = PNG.sync.read(Buffer.from(qrSrc.replace(/^data:image\/png;base64,/, ""), "base64"));
+  const decodedQr = jsQR(new Uint8ClampedArray(qrPng.data), qrPng.width, qrPng.height);
+  assert.ok(decodedQr, "Expected rendered QR image to be decodable");
+  assert.equal(decodedQr.data, deepLinkHref, "Decoded QR payload must exactly match the UPI deep link URI");
+
   assert.equal(await attPage.getByText(/Issued Digital QR Passes/i).count(), 0, "Tickets must not exist before verification");
 
   const refHeading = await attPage.locator("h2", { hasText: "Reference:" }).textContent();

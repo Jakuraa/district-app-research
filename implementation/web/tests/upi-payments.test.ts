@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasPermission } from "@nightlifez/shared";
+import QRCode from "qrcode";
+import jsQR from "jsqr";
+import { PNG } from "pngjs";
+import { buildUpiPaymentUri, hasPermission } from "@nightlifez/shared";
 import { getMemoryStore } from "../src/lib/memoryStore.ts";
 import {
+  createUpiClaimToken,
   expireStaleUpiBookings,
   getPublicOrganiserPaymentInfo,
   listOrganiserPaymentVerifications,
@@ -85,6 +89,18 @@ test("organiser UPI payment flow: zero tickets before approval, claim never auto
     assert.equal(booking.tickets?.length ?? 0, 0, "No tickets may be issued before organiser verification");
     assert.equal(tier.remainingQuota, quotaBefore - 2, "Inventory should be reserved while awaiting UPI");
 
+    // Unauthenticated request on registered user's booking must be rejected
+    await assert.rejects(
+      () => submitAttendeeUpiClaim(booking.id, { claimedPaid: true }, null),
+      /Unauthorized/i
+    );
+
+    // Another attendee cannot submit claim for Priya's booking
+    await assert.rejects(
+      () => submitAttendeeUpiClaim(booking.id, { claimedPaid: true }, "usr_other_attendee"),
+      /Forbidden/i
+    );
+
     // 3. Attendee submits "I've Paid" + UTR: must NOT auto-confirm or issue tickets
     const claimed = await submitAttendeeUpiClaim(
       booking.id,
@@ -99,12 +115,6 @@ test("organiser UPI payment flow: zero tickets before approval, claim never auto
     assert.equal(claimed.paymentStatus, "PENDING");
     assert.equal(claimed.paymentSubmittedRef, "UTR412900001122");
     assert.equal(claimed.tickets?.length ?? 0, 0, "UTR claim must never auto-issue tickets");
-
-    // Another attendee cannot submit claim for Priya's booking
-    await assert.rejects(
-      () => submitAttendeeUpiClaim(booking.id, { claimedPaid: true }, "usr_other_attendee"),
-      /Forbidden/i
-    );
 
     // 4. Amount mismatch on verification must fail
     await assert.rejects(
@@ -266,4 +276,85 @@ test("RBAC isolation prevents attendee, checkin_staff, box_office, and cross-org
     }),
     true
   );
+});
+
+test("UPI QR encoding produces a scannable QR whose decoded payload matches the exact UPI URI", async () => {
+  const expectedUri = buildUpiPaymentUri({
+    upiId: "afterdark.club@okicici",
+    payeeName: "Afterdark Club",
+    amountInr: 1799,
+    referenceCode: "NLZ-QRTEST1"
+  });
+  const dataUrl = await QRCode.toDataURL(expectedUri, {
+    width: 224,
+    margin: 2,
+    errorCorrectionLevel: "M"
+  });
+  const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+  const png = PNG.sync.read(Buffer.from(base64, "base64"));
+  const decoded = jsQR(new Uint8ClampedArray(png.data), png.width, png.height);
+  assert.ok(decoded, "Expected jsQR to decode generated QR image");
+  assert.equal(decoded.data, expectedUri);
+});
+
+test("guest UPI payment claims require a valid booking-specific signed claimToken", async () => {
+  const { events } = await listCitiesAndEvents({}, { includeNonPublished: true });
+  const event = events.find((e) => e.organizationId && e.tiers.some((t) => t.remainingQuota >= 2));
+  assert.ok(event);
+  const orgId = event.organizationId!;
+  const tier = event.tiers.find((t) => t.remainingQuota >= 2)!;
+  const orgOwnerActor = { id: "usr_org_owner", email: "owner@nightlifez.test", role: "organiser_owner" };
+
+  try {
+    await upsertOrganiserPaymentProfile(
+      orgId,
+      { upiEnabled: true, upiId: "guest.test@okicici", payeeDisplayName: "Guest Test Club" },
+      orgOwnerActor
+    );
+
+    const guestBooking = await createDemoBooking(
+      {
+        eventSlug: event.slug,
+        attendeeName: "Guest Buyer",
+        attendeeEmail: "guest.buyer@nightlifez.test",
+        items: [{ tierId: tier.id, quantity: 1 }],
+        paymentChannel: "ORGANISER_UPI",
+        idempotencyKey: `upi-guest-${Date.now()}`
+      },
+      { userId: null }
+    );
+
+    // Missing token rejected
+    await assert.rejects(
+      () => submitAttendeeUpiClaim(guestBooking.id, { claimedPaid: true }, null),
+      /Forbidden/i
+    );
+
+    // Wrong/tampered token rejected
+    await assert.rejects(
+      () =>
+        submitAttendeeUpiClaim(
+          guestBooking.id,
+          { claimedPaid: true, claimToken: "tampered-token-123456" },
+          null
+        ),
+      /Forbidden/i
+    );
+
+    // Valid booking-specific claimToken succeeds
+    const validToken = createUpiClaimToken(guestBooking.id, guestBooking.referenceCode);
+    const claimed = await submitAttendeeUpiClaim(
+      guestBooking.id,
+      { claimedPaid: true, transactionRef: "UTR99887766", claimToken: validToken },
+      null
+    );
+    assert.equal(claimed.paymentSubmittedRef, "UTR99887766");
+    assert.equal(claimed.status, "AWAITING_PAYMENT_VERIFICATION");
+  } finally {
+    await upsertOrganiserPaymentProfile(
+      orgId,
+      { upiEnabled: false, upiId: null, payeeDisplayName: null, paymentInstructions: null },
+      orgOwnerActor
+    );
+  }
 });

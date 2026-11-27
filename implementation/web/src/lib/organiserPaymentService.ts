@@ -252,6 +252,23 @@ export async function buildBookingUpiPayload(booking: BookingRecord): Promise<{
   };
 }
 
+function getClaimTokenSecret(): string {
+  return process.env.NIGHTLIFEZ_AUTH_SECRET || process.env.AUTH_SECRET || "nightlifez-dev-upi-claim-secret";
+}
+
+export function createUpiClaimToken(bookingId: string, referenceCode: string): string {
+  const payload = `${bookingId}:${referenceCode}`;
+  return crypto.createHmac("sha256", getClaimTokenSecret()).update(payload).digest("hex");
+}
+
+export function verifyUpiClaimToken(token: string, bookingId: string, referenceCode: string): boolean {
+  const expected = createUpiClaimToken(bookingId, referenceCode);
+  const a = Buffer.from(token, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 export async function submitAttendeeUpiClaim(
   bookingId: string,
   rawInput: unknown,
@@ -266,8 +283,15 @@ export async function submitAttendeeUpiClaim(
     const store = getMemoryStore();
     const booking = store.bookings.find((b) => b.id === bookingId);
     if (!booking) throw new Error("Booking not found.");
-    if (booking.userId && actorUserId && booking.userId !== actorUserId) {
-      throw new Error("Forbidden: cannot update another attendee's booking.");
+    if (booking.userId) {
+      if (!actorUserId) {
+        throw new Error("Unauthorized: sign in to submit a payment claim for this booking.");
+      }
+      if (booking.userId !== actorUserId) {
+        throw new Error("Forbidden: cannot update another attendee's booking.");
+      }
+    } else if (!input.claimToken || !verifyUpiClaimToken(input.claimToken, booking.id, booking.referenceCode)) {
+      throw new Error("Forbidden: valid booking claim token is required for guest payment claims.");
     }
     if (booking.status !== "AWAITING_PAYMENT_VERIFICATION") {
       throw new Error(`Booking is in state ${booking.status} and cannot accept a UPI claim.`);
@@ -297,8 +321,18 @@ export async function submitAttendeeUpiClaim(
   const res = await pool.query("SELECT * FROM bookings WHERE id = $1 LIMIT 1", [bookingId]);
   if (res.rowCount === 0) throw new Error("Booking not found.");
   const row = res.rows[0];
-  if (row.user_id && actorUserId && String(row.user_id) !== actorUserId) {
-    throw new Error("Forbidden: cannot update another attendee's booking.");
+  if (row.user_id) {
+    if (!actorUserId) {
+      throw new Error("Unauthorized: sign in to submit a payment claim for this booking.");
+    }
+    if (String(row.user_id) !== actorUserId) {
+      throw new Error("Forbidden: cannot update another attendee's booking.");
+    }
+  } else if (
+    !input.claimToken ||
+    !verifyUpiClaimToken(input.claimToken, String(row.id), String(row.reference_code))
+  ) {
+    throw new Error("Forbidden: valid booking claim token is required for guest payment claims.");
   }
   if (String(row.status) !== "AWAITING_PAYMENT_VERIFICATION") {
     throw new Error(`Booking is in state ${String(row.status)} and cannot accept a UPI claim.`);
