@@ -54,18 +54,39 @@ async function run() {
     await page.getByRole("button", { name: "Create Draft Copy" }).click();
     await page.getByText(/Duplicated as DRAFT/i).waitFor({ timeout: 8000 });
 
-    // 4. Guests tab + A4 Printable Guest List
+    // 3.5 Configure a required custom booking question on the newly created event and test CSV import with it
+    await page.getByRole("button", { name: "Questions" }).first().click();
+    await page.getByRole("button", { name: "+ Add Question" }).click();
+    await page.getByPlaceholder("Question label (e.g. Instagram handle)").first().fill("Instagram Handle");
+    await page.locator('input[type="checkbox"]').last().check();
+    await page.getByRole("button", { name: "Save Questions" }).click();
+    await page.getByText(/Saved 1 booking question/i).waitFor({ timeout: 8000 });
+
+    // 4. Guests tab + CSV import with custom question + A4 Printable Guest List
     await page.getByRole("button", { name: "guests", exact: true }).click();
     await page.getByText("Add Walk-In, Cash, VIP or Comp Guest").waitFor();
-    await page.getByPlaceholder("Full name").fill("E2E Walkin");
-    await page.getByPlaceholder("Email address").fill(`e2e-walkin-${Date.now()}@nightlifez.test`);
-    await page.getByRole("button", { name: "Issue Guest Pass" }).click();
-    await page.getByText(/Manual pass issued/i).waitFor({ timeout: 8000 });
+    const eventSelect = page.locator("section select").first();
+    const targetOptionVal = await eventSelect.locator("option").first().getAttribute("value");
+    if (targetOptionVal) await eventSelect.selectOption(targetOptionVal);
+    await page.getByText("Expected headers:").waitFor();
+    await page.getByText(/Instagram Handle \(required\)/i).waitFor({ timeout: 8000 });
+    await page.getByRole("button", { name: "Load Template" }).click();
+
+    const csvPayload = [
+      "name,email,phone,tier,type,Instagram Handle",
+      `"E2E, Quoted",e2e-csv-ok-${Date.now()}@nightlifez.test,9876500111,,VIP,@e2e.quoted`,
+      `"Missing Answer",e2e-csv-fail-${Date.now()}@nightlifez.test,9876500112,,COMP,`
+    ].join("\n");
+    await page.locator("textarea").last().fill(csvPayload);
+    await page.getByRole("button", { name: "Validate & Import Guest List" }).click();
+    await page.getByText(/Imported 1 pass\(es\)\. Duplicates skipped: 0\. Errors: 1\./i).waitFor({ timeout: 8000 });
+    await page.getByText(/Line 3:.*Instagram Handle.*required/i).waitFor({ timeout: 8000 });
 
     await page.getByRole("link", { name: "Print A4 / PDF Guest List" }).click();
     await page.waitForURL("**/organiser/guest-list/**");
     await page.getByText("NIGHTLIFEZ · A4 Door Guest List").waitFor({ timeout: 8000 });
-    console.log("E2E organiser duplication, box-office guest list, and A4 print view passed.");
+    await page.getByText("E2E, Quoted").waitFor({ timeout: 8000 });
+    console.log("E2E organiser duplication, custom-question CSV import, and A4 print view passed.");
 
     // 5. Attendee approval request -> Organiser approve -> Pay link completion
     await page.goto(`${BASE_URL}/o/nightlifez-originals`, { waitUntil: "networkidle" });
@@ -74,6 +95,10 @@ async function run() {
     await page.waitForURL("**/events/**/book");
     await page.getByRole("button", { name: "1", exact: true }).click();
     await page.getByRole("button", { name: "Proceed", exact: true }).click();
+    const igInput = page.locator('input[type="text"]').last();
+    if (await igInput.isVisible()) {
+      await igInput.fill("@e2e.requester");
+    }
     await page.getByRole("button", { name: /Request Spot \(Approval Required/i }).click();
     await page.getByText(/REQUEST SUBMITTED · AWAITING ORGANISER APPROVAL/i).waitFor({ timeout: 8000 });
 

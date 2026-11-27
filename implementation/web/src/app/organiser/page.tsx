@@ -73,7 +73,7 @@ export default function OrganiserPortalPage() {
   const [inviteEventId, setInviteEventId] = useState("");
 
   async function loadOverview() {
-    setLoading(true);
+    if (!data) setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/organiser/overview");

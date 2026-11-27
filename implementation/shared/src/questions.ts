@@ -100,9 +100,61 @@ export interface ParsedCsvGuestRow {
   phone: string | null;
   tierHint: string | null;
   guestTypeHint: "WALK_IN_CASH" | "VIP" | "COMPLIMENTARY" | null;
+  rawAnswers: AttendeeAnswersMap;
 }
 
-export function parseCsvGuestRows(csvText: string): {
+function coerceCsvQuestionValue(question: BookingQuestion, rawCell: string): string | number | boolean | string[] | undefined {
+  const trimmed = rawCell.trim();
+  if (trimmed.length === 0) return undefined;
+
+  switch (question.fieldType) {
+    case "NUMBER": {
+      const n = Number(trimmed);
+      return Number.isFinite(n) ? n : trimmed;
+    }
+    case "CHECKBOX": {
+      const low = trimmed.toLowerCase();
+      if (low === "true" || low === "yes" || low === "1" || low === "y") return true;
+      if (low === "false" || low === "no" || low === "0" || low === "n") return false;
+      return trimmed;
+    }
+    case "MULTI_CHOICE": {
+      const optionsHaveCommas = question.options.some((o) => o.includes(","));
+      const sep = optionsHaveCommas ? /[;|]/ : /[;|,]/;
+      return trimmed
+        .split(sep)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+    default:
+      return trimmed;
+  }
+}
+
+export function buildCsvGuestTemplate(questions: readonly BookingQuestion[] = []): string {
+  const escapeCell = (val: string) => (val.includes(",") || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val);
+  const headers = ["name", "email", "phone", "tier", "type", ...questions.map((q) => q.label)];
+  const sampleRow = [
+    '"Asha, Rao"',
+    "asha@example.com",
+    "9876500099",
+    "",
+    "COMP",
+    ...questions.map((q) => {
+      if (q.fieldType === "NUMBER") return "25";
+      if (q.fieldType === "CHECKBOX") return "yes";
+      if (q.fieldType === "DROPDOWN") return q.options[0] ?? "Option 1";
+      if (q.fieldType === "MULTI_CHOICE") return q.options.slice(0, 2).join("; ") || "Option 1";
+      return "Sample answer";
+    })
+  ];
+  return [headers.map(escapeCell).join(","), sampleRow.join(",")].join("\n");
+}
+
+export function parseCsvGuestRows(
+  csvText: string,
+  questions: readonly BookingQuestion[] = []
+): {
   rows: ParsedCsvGuestRow[];
   errors: { lineNumber: number; message: string }[];
 } {
@@ -140,7 +192,8 @@ export function parseCsvGuestRows(csvText: string): {
     return out;
   };
 
-  const firstCols = splitLine(lines[0]).map((c) => c.toLowerCase());
+  const rawFirstCols = splitLine(lines[0]);
+  const firstCols = rawFirstCols.map((c) => c.toLowerCase());
   const hasHeader =
     firstCols.some((c) => c.includes("name") || c.includes("email")) &&
     !firstCols.some((c) => c.includes("@"));
@@ -150,24 +203,65 @@ export function parseCsvGuestRows(csvText: string): {
   let phoneIdx = 2;
   let tierIdx = 3;
   let typeIdx = 4;
+  const questionColMap: { colIndex: number; question: BookingQuestion }[] = [];
+  const errors: { lineNumber: number; message: string }[] = [];
 
   if (hasHeader) {
-    nameIdx = firstCols.findIndex((c) => c.includes("name"));
-    emailIdx = firstCols.findIndex((c) => c.includes("email"));
+    nameIdx = firstCols.findIndex((c) => c === "name" || c === "full_name" || c === "fullname" || c.includes("name"));
+    emailIdx = firstCols.findIndex((c) => c === "email" || c.includes("email"));
     phoneIdx = firstCols.findIndex((c) => c.includes("phone") || c.includes("mobile"));
-    tierIdx = firstCols.findIndex((c) => c.includes("tier") || c.includes("pass"));
-    typeIdx = firstCols.findIndex((c) => c.includes("type") || c.includes("source"));
+    tierIdx = firstCols.findIndex((c) => c === "tier" || c.includes("tier") || c.includes("pass"));
+    typeIdx = firstCols.findIndex((c) => c === "type" || c === "source" || c.includes("guest_type"));
     if (nameIdx === -1 || emailIdx === -1) {
       return {
         rows: [],
         errors: [{ lineNumber: 1, message: "CSV header must include name and email columns." }]
       };
     }
+
+    const labelCounts = new Map<string, number>();
+    for (const q of questions) {
+      const norm = q.label.trim().toLowerCase();
+      labelCounts.set(norm, (labelCounts.get(norm) ?? 0) + 1);
+    }
+
+    const reservedIndices = new Set([nameIdx, emailIdx, phoneIdx, tierIdx, typeIdx].filter((i) => i >= 0));
+    for (let colIdx = 0; colIdx < rawFirstCols.length; colIdx++) {
+      if (reservedIndices.has(colIdx)) continue;
+      const rawHeader = rawFirstCols[colIdx]!.trim();
+      const normHeader = rawHeader.toLowerCase();
+      if (!normHeader) continue;
+
+      const idStripped = normHeader.startsWith("q:")
+        ? normHeader.slice(2).trim()
+        : normHeader.startsWith("question:")
+        ? normHeader.slice(9).trim()
+        : normHeader;
+
+      const byId = questions.find((q) => q.id.toLowerCase() === idStripped);
+      if (byId) {
+        questionColMap.push({ colIndex: colIdx, question: byId });
+        continue;
+      }
+
+      const byLabel = questions.filter((q) => q.label.trim().toLowerCase() === normHeader);
+      if (byLabel.length === 1) {
+        questionColMap.push({ colIndex: colIdx, question: byLabel[0]! });
+      } else if (byLabel.length > 1) {
+        errors.push({
+          lineNumber: 1,
+          message: `Ambiguous CSV column "${rawHeader}" matches multiple questions; use question ID (${byLabel.map((q) => q.id).join(" or ")}).`
+        });
+      }
+    }
+  } else {
+    questions.forEach((q, idx) => {
+      questionColMap.push({ colIndex: 5 + idx, question: q });
+    });
   }
 
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const rows: ParsedCsvGuestRow[] = [];
-  const errors: { lineNumber: number; message: string }[] = [];
 
   for (let i = hasHeader ? 1 : 0; i < lines.length; i++) {
     const lineNumber = i + 1;
@@ -192,7 +286,16 @@ export function parseCsvGuestRows(csvText: string): {
     else if (rawType === "CASH" || rawType === "WALK_IN_CASH" || rawType === "WALKIN") guestTypeHint = "WALK_IN_CASH";
     else if (rawType === "COMP" || rawType === "COMPLIMENTARY") guestTypeHint = "COMPLIMENTARY";
 
-    rows.push({ lineNumber, fullName, email, phone, tierHint, guestTypeHint });
+    const rawAnswers: AttendeeAnswersMap = {};
+    for (const mapping of questionColMap) {
+      const cell = cols[mapping.colIndex] ?? "";
+      const coerced = coerceCsvQuestionValue(mapping.question, cell);
+      if (coerced !== undefined) {
+        rawAnswers[mapping.question.id] = coerced;
+      }
+    }
+
+    rows.push({ lineNumber, fullName, email, phone, tierHint, guestTypeHint, rawAnswers });
   }
 
   return { rows, errors };

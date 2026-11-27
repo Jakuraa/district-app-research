@@ -391,3 +391,75 @@ test("CSV invalid rows, duplicate prevention, manual guest issuance, RBAC isolat
   assert.ok(logs.some((l) => l.action === "MANUAL_GUEST_CREATED"));
   assert.ok(logs.some((l) => l.action === "GUEST_LIST_IMPORTED"));
 });
+
+test("CSV import with required & optional custom booking questions validates rows and prevents partial bookings", async () => {
+  const orgSession = await signInUser({ email: "organiser@nightlifez.test", password: DEMO_PASS });
+  const actor = { id: orgSession.user!.id, email: orgSession.user!.email, role: "organiser_owner" };
+
+  const evt = await upsertOrganiserEvent(
+    {
+      organizationId: "org-nightlifez-originals",
+      title: "CSV Custom Questions Event",
+      category: "parties",
+      citySlug: "bengaluru",
+      venueSlug: "skyline-amphitheatre-bengaluru",
+      startsAt: "2027-05-01T20:00:00+05:30",
+      endsAt: "2027-05-01T23:55:00+05:30",
+      dateLabel: "Sat, 1 May · 8:00 PM",
+      summary: "Event testing CSV import with required and optional booking questions.",
+      lifecycleStatus: "PUBLISHED",
+      tiers: [{ sectionId: "sec-ga", name: "GA", description: "General", priceInr: 500, totalQuota: 20, maxPerOrder: 4 }]
+    },
+    actor
+  );
+
+  const questions = await replaceEventQuestions(
+    evt.id,
+    {
+      questions: [
+        { label: "Instagram Handle", fieldType: "SHORT_TEXT", options: [], required: true, sortOrder: 0 },
+        { label: "Meal Preference", fieldType: "DROPDOWN", options: ["Veg", "Vegan"], required: true, sortOrder: 1 },
+        { label: "Access Zones", fieldType: "MULTI_CHOICE", options: ["Main", "Lounge", "Patio"], required: false, sortOrder: 2 },
+        { label: "Notes", fieldType: "LONG_TEXT", options: [], required: false, sortOrder: 3 }
+      ]
+    },
+    actor
+  );
+
+  const csv = [
+    `name,email,phone,tier,type,${questions[0]!.id},Meal Preference,Access Zones,Notes`,
+    '"Kapoor, Riya",riya-csv@nightlifez.test,9876500101,GA,VIP,@riya.k,Veg,"Main, Lounge","Allergic to nuts, prefers aisle"',
+    '"Missing Req",missing-req@nightlifez.test,9876500102,GA,COMP,,Veg,Main,',
+    '"Bad Dropdown",bad-drop@nightlifez.test,9876500103,GA,COMP,@bad.d,Steak,Main,',
+    '"Bad Multi",bad-multi@nightlifez.test,9876500104,GA,COMP,@bad.m,Vegan,"Main, InvalidZone",',
+    '"Riya Dup",riya-csv@nightlifez.test,9876500101,GA,VIP,@riya.dup,Vegan,Patio,'
+  ].join("\n");
+
+  const quotaBefore = (await getEventDetail(evt.id))!.event.tiers[0]!.remainingQuota;
+  const res = await importCsvGuestList(
+    evt.id,
+    { csvText: csv, defaultTierId: evt.tiers[0]!.id, defaultGuestType: "COMPLIMENTARY" },
+    actor
+  );
+
+  assert.equal(res.importedCount, 1);
+  assert.equal(res.skippedDuplicates.length, 1);
+  assert.equal(res.errors.length, 3);
+  assert.ok(res.errors.some((e) => e.lineNumber === 3 && /Instagram Handle.*required/i.test(e.message)));
+  assert.ok(res.errors.some((e) => e.lineNumber === 4 && /Meal Preference.*invalid selection/i.test(e.message)));
+  assert.ok(res.errors.some((e) => e.lineNumber === 5 && /Access Zones.*invalid option/i.test(e.message)));
+
+  // Failed rows must NOT create partial bookings/tickets or decrement quota
+  const store = getMemoryStore();
+  for (const failedEmail of ["missing-req@nightlifez.test", "bad-drop@nightlifez.test", "bad-multi@nightlifez.test"]) {
+    assert.equal(store.bookings.some((b) => b.eventId === evt.id && b.attendeeEmail === failedEmail), false);
+    assert.equal(store.tickets.some((t) => t.eventId === evt.id && t.holderEmail === failedEmail), false);
+  }
+  assert.equal((await getEventDetail(evt.id))!.event.tiers[0]!.remainingQuota, quotaBefore - 1);
+
+  const exported = await exportEventGuestList(evt.id);
+  assert.equal(exported.rows.length, 1);
+  assert.equal(exported.rows[0]!.attendeeName, "Kapoor, Riya");
+  assert.equal(exported.rows[0]!.answers[questions[0]!.id], "@riya.k");
+  assert.deepEqual(exported.rows[0]!.answers[questions[2]!.id], ["Main", "Lounge"]);
+});

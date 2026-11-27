@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+  buildCsvGuestTemplate,
   formatInr,
   type BookingQuestion,
   type BookingQuestionType,
@@ -291,7 +292,10 @@ export function OrganiserGuestListPanel({
   const [phone, setPhone] = useState("");
   const [guestType, setGuestType] = useState<"WALK_IN_CASH" | "VIP" | "COMPLIMENTARY">("WALK_IN_CASH");
   const [csvText, setCsvText] = useState("name,email,phone,tier,type\n");
+  const [eventQuestions, setEventQuestions] = useState<BookingQuestion[]>([]);
   const [importSummary, setImportSummary] = useState<string | null>(null);
+  const [importRowErrors, setImportRowErrors] = useState<{ lineNumber: number; message: string }[]>([]);
+  const [importDuplicates, setImportDuplicates] = useState<{ lineNumber: number; email: string; reason: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const activeEvent = events.find((e) => e.id === selectedEventId) ?? events[0];
@@ -300,7 +304,28 @@ export function OrganiserGuestListPanel({
     if (activeEvent && !activeEvent.tiers.some((t) => t.id === tierId)) {
       setTierId(activeEvent.tiers[0]?.id ?? "");
     }
+    if (activeEvent) {
+      fetch(`/api/events/${encodeURIComponent(activeEvent.slug)}/questions`)
+        .then((r) => r.json())
+        .then((json) => {
+          const qs = Array.isArray(json?.questions) ? (json.questions as BookingQuestion[]) : [];
+          setEventQuestions(qs);
+        })
+        .catch(() => setEventQuestions([]));
+    }
   }, [activeEvent, tierId]);
+
+  function downloadCsvTemplate() {
+    if (!activeEvent) return;
+    const template = buildCsvGuestTemplate(eventQuestions);
+    const blob = new Blob([template], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `guest-import-template-${activeEvent.slug}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleManualAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -335,6 +360,8 @@ export function OrganiserGuestListPanel({
     if (!activeEvent) return;
     setError(null);
     setImportSummary(null);
+    setImportRowErrors([]);
+    setImportDuplicates([]);
     const res = await fetch(`/api/organiser/events/${encodeURIComponent(activeEvent.id)}/guests/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -349,6 +376,8 @@ export function OrganiserGuestListPanel({
       setError(json?.error ?? "CSV import failed");
       return;
     }
+    setImportRowErrors(json.errors ?? []);
+    setImportDuplicates(json.skippedDuplicates ?? []);
     setImportSummary(
       `Imported ${json.importedCount} pass(es). Duplicates skipped: ${json.skippedDuplicates?.length ?? 0}. Errors: ${json.errors?.length ?? 0}.`
     );
@@ -442,10 +471,49 @@ export function OrganiserGuestListPanel({
         </form>
 
         <form onSubmit={handleCsvImport} className="space-y-3 rounded-2xl border border-[#e4e6f0] bg-white p-5">
-          <h3 className="text-base font-extrabold text-[#111319]">Import Guest List (CSV)</h3>
-          <p className="text-[11px] text-[#5e6473]">
-            Columns: <code>name,email,phone,tier,type</code> (VIP / COMP / CASH). Invalid rows & duplicates are skipped safely.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-base font-extrabold text-[#111319]">Import Guest List (CSV)</h3>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCsvText(buildCsvGuestTemplate(eventQuestions))}
+                className="rounded-lg border border-[#e4e6f0] px-2.5 py-1 text-[11px] font-bold text-[#5b3df5]"
+              >
+                Load Template
+              </button>
+              <button
+                type="button"
+                onClick={downloadCsvTemplate}
+                className="rounded-lg bg-[#f6f7fb] px-2.5 py-1 text-[11px] font-bold text-[#111319]"
+              >
+                Download CSV Template
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1 rounded-xl bg-[#f6f7fb] p-3 text-[11px] text-[#374151]">
+            <div>
+              <strong>Expected headers:</strong>{" "}
+              <code>
+                name,email,phone,tier,type
+                {eventQuestions.map((q) => `,${q.label}`).join("")}
+              </code>
+            </div>
+            {eventQuestions.length > 0 ? (
+              <div>
+                <strong>Custom questions:</strong>{" "}
+                {eventQuestions
+                  .map(
+                    (q) =>
+                      `${q.label}${q.required ? " (required)" : " (optional)"} [${q.id}]${
+                        q.options.length > 0 ? ` {${q.options.join(" / ")}}` : ""
+                      }`
+                  )
+                  .join(" · ")}
+              </div>
+            ) : (
+              <div>No custom booking questions configured for this event.</div>
+            )}
+          </div>
           <textarea
             rows={5}
             value={csvText}
@@ -456,6 +524,20 @@ export function OrganiserGuestListPanel({
             <p className="rounded-xl bg-[#dcfce7] px-3 py-2 text-xs font-bold text-[#16a34a]">
               {importSummary}
             </p>
+          ) : null}
+          {importRowErrors.length > 0 ? (
+            <div className="space-y-1 rounded-xl bg-[#fee2e2] p-3 text-[11px] font-semibold text-[#dc2626]">
+              {importRowErrors.map((err, i) => (
+                <div key={i}>Line {err.lineNumber}: {err.message}</div>
+              ))}
+            </div>
+          ) : null}
+          {importDuplicates.length > 0 ? (
+            <div className="space-y-1 rounded-xl bg-[#fef3c7] p-3 text-[11px] font-semibold text-[#92400e]">
+              {importDuplicates.map((d, i) => (
+                <div key={i}>Line {d.lineNumber} ({d.email}): {d.reason}</div>
+              ))}
+            </div>
           ) : null}
           <button type="submit" className="w-full rounded-xl bg-[#111319] py-2.5 text-xs font-extrabold text-white">
             Validate & Import Guest List

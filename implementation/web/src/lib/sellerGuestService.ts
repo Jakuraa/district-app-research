@@ -1023,7 +1023,8 @@ export async function importCsvGuestList(
   if (!detail) throw new Error("Event not found.");
   const { event } = detail;
 
-  const parsed = parseCsvGuestRows(input.csvText);
+  const questions = await listEventQuestions(event.id);
+  const parsed = parseCsvGuestRows(input.csvText, questions);
   const skippedDuplicates: { lineNumber: number; email: string; reason: string }[] = [];
   const errors = [...parsed.errors];
   const seenEmailsInBatch = new Set<string>();
@@ -1038,7 +1039,6 @@ export async function importCsvGuestList(
       });
       continue;
     }
-    seenEmailsInBatch.add(row.email);
 
     const matchedTier =
       (row.tierHint
@@ -1063,17 +1063,18 @@ export async function importCsvGuestList(
           email: row.email,
           phone: row.phone,
           guestType: row.guestTypeHint ?? input.defaultGuestType,
-          answers: {}
+          answers: row.rawAnswers
         },
         actor
       );
+      seenEmailsInBatch.add(row.email);
       importedBookings.push(booking);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to import row";
       if (msg.includes("already holds an active pass")) {
         skippedDuplicates.push({ lineNumber: row.lineNumber, email: row.email, reason: msg });
       } else {
-        errors.push({ lineNumber: row.lineNumber, message: msg });
+        errors.push({ lineNumber: row.lineNumber, message: `Line ${row.lineNumber}: ${msg}` });
       }
     }
   }
