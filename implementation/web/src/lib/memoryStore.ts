@@ -16,10 +16,14 @@ import {
   type FeatureFlag,
   type InventoryHold,
   type LedgerEntry,
+  type MembershipPlan,
+  type MembershipRecord,
   type Organization,
   type OrganiserPaymentProfile,
   type OtpPurpose,
   type PlatformNotification,
+  type Promoter,
+  type PromoterPayout,
   type PulseEvent,
   type RefundRequest,
   type RoleAssignmentRecord,
@@ -29,6 +33,8 @@ import {
   type SupportCase,
   type TicketPass,
   type TicketScanLog,
+  type TripBookingRecord,
+  type TripListing,
   type UserAccount,
   type Venue
 } from "@nightlifez/shared";
@@ -88,6 +94,12 @@ export interface MemoryStore {
   featureFlags: FeatureFlag[];
   savedItems: SavedItem[];
   auditLogs: AuditLogEntry[];
+  promoters: Promoter[];
+  promoterPayouts: PromoterPayout[];
+  trips: TripListing[];
+  tripBookings: TripBookingRecord[];
+  membershipPlans: MembershipPlan[];
+  memberships: MembershipRecord[];
 }
 
 declare global {
@@ -175,7 +187,13 @@ function createInitialStore(): MemoryStore {
     notifications: structuredClone(SEED_NOTIFICATIONS),
     featureFlags: structuredClone(SEED_FEATURE_FLAGS),
     savedItems: [],
-    auditLogs: []
+    auditLogs: [],
+    promoters: [],
+    promoterPayouts: [],
+    trips: [],
+    tripBookings: [],
+    membershipPlans: [],
+    memberships: []
   };
 }
 

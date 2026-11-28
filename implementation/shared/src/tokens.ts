@@ -86,10 +86,11 @@ export const DISCOVERY_CATEGORIES = [
   { key: "concerts", label: "Concerts", color: "#5B3DF5", icon: "music" },
   { key: "parties", label: "Parties", color: "#E11D48", icon: "sparkles" },
   { key: "festivals", label: "Festivals", color: "#D97706", icon: "sun" },
+  { key: "nightlife", label: "Nightlife", color: "#9333EA", icon: "moon" },
   { key: "comedy", label: "Comedy", color: "#0284C7", icon: "mic" },
   { key: "music", label: "Music", color: "#7C3AED", icon: "headphones" },
-  { key: "dining", label: "Dining", color: "#059669", icon: "utensils" },
-  { key: "movies", label: "Movies", color: "#DC2626", icon: "film" },
   { key: "sports", label: "Sports", color: "#0D9488", icon: "trophy" },
-  { key: "activities", label: "Activities", color: "#4F46E5", icon: "compass" }
+  { key: "workshops", label: "Workshops", color: "#059669", icon: "wrench" },
+  { key: "meetups", label: "Meetups", color: "#2563EB", icon: "users" },
+  { key: "experiences", label: "Experiences", color: "#4F46E5", icon: "compass" }
 ] as const;

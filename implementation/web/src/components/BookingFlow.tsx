@@ -254,6 +254,10 @@ export function BookingFlow({ event, venue }: BookingFlowProps) {
           sessionId: selectedSessionId,
           holdId: activeHold?.id ?? null,
           idempotencyKey: simulateOutcome === "CONFIRMED" ? idempotencyKey : undefined,
+          referralCode:
+            typeof window !== "undefined"
+              ? new URLSearchParams(window.location.search).get("ref") || undefined
+              : undefined,
           simulatePaymentOutcome: simulateOutcome,
           paymentChannel: event.approvalRequired ? "DEMO_SANDBOX" : selectedPaymentChannel,
           items: selections,

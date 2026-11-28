@@ -13,7 +13,9 @@ export const eventQuerySchema = z.object({
       "parties",
       "music",
       "sports",
-      "workshops"
+      "workshops",
+      "meetups",
+      "experiences"
     ])
     .optional(),
   q: z.string().trim().max(120).optional(),
@@ -52,6 +54,7 @@ export const createBookingSchema = z.object({
   sessionId: z.string().trim().max(60).optional().nullable(),
   holdId: z.string().trim().max(60).optional().nullable(),
   idempotencyKey: z.string().trim().min(4).max(80).optional().nullable(),
+  referralCode: z.string().trim().max(40).optional().nullable(),
   simulatePaymentOutcome: z.enum(["CONFIRMED", "FAILED"]).optional(),
   paymentChannel: z.enum(["DEMO_SANDBOX", "ORGANISER_UPI"]).optional(),
   items: z.array(bookingItemInputSchema).min(1).max(6),
@@ -134,7 +137,9 @@ export const upsertEventSchema = z.object({
     "parties",
     "music",
     "sports",
-    "workshops"
+    "workshops",
+    "meetups",
+    "experiences"
   ]),
   citySlug: z.string().trim().min(1).max(60),
   venueSlug: z.string().trim().min(1).max(80),
@@ -153,6 +158,9 @@ export const upsertEventSchema = z.object({
     .optional(),
   visibility: z.enum(["PUBLIC", "UNLISTED", "INVITE_ONLY"]).optional(),
   approvalRequired: z.boolean().optional(),
+  goalTickets: z.number().int().min(1).max(500000).optional().nullable(),
+  goalRevenueInr: z.number().int().min(0).max(500000000).optional().nullable(),
+  maxCapacity: z.number().int().min(1).max(500000).optional().nullable(),
   tiers: z
     .array(
       z.object({

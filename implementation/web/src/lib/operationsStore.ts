@@ -184,6 +184,9 @@ export async function upsertOrganiserEvent(
       existing.lifecycleStatus = nextStatus;
       if (input.visibility !== undefined) existing.visibility = input.visibility;
       if (input.approvalRequired !== undefined) existing.approvalRequired = input.approvalRequired;
+      if (input.goalTickets !== undefined) existing.goalTickets = input.goalTickets;
+      if (input.goalRevenueInr !== undefined) existing.goalRevenueInr = input.goalRevenueInr;
+      if (input.maxCapacity !== undefined) existing.maxCapacity = input.maxCapacity;
       existing.tiers = tiers.map((nt) => {
         const old = existing.tiers.find((ot) => ot.id === nt.id);
         return old ? { ...nt, remainingQuota: Math.min(nt.totalQuota, old.remainingQuota) } : nt;
@@ -214,6 +217,9 @@ export async function upsertOrganiserEvent(
       visibility: input.visibility ?? "PUBLIC",
       approvalRequired: input.approvalRequired ?? false,
       clonedFromEventId: null,
+      goalTickets: input.goalTickets ?? null,
+      goalRevenueInr: input.goalRevenueInr ?? null,
+      maxCapacity: input.maxCapacity ?? null,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       dateLabel: input.dateLabel,
@@ -276,6 +282,8 @@ export async function upsertOrganiserEvent(
            starts_at = $7, ends_at = $8, date_label = $9, summary = $10, age_limit = $11,
            language = $12, duration_label = $13, active_phase = $14, lifecycle_status = $15,
            visibility = COALESCE($16, visibility), approval_required = COALESCE($17, approval_required),
+           goal_tickets = COALESCE($18, goal_tickets), goal_revenue_inr = COALESCE($19, goal_revenue_inr),
+           max_capacity = COALESCE($20, max_capacity),
            updated_at = NOW()
          WHERE id = $1`,
         [
@@ -295,7 +303,10 @@ export async function upsertOrganiserEvent(
           input.activePhase ?? String(existing.active_phase),
           nextStatus,
           input.visibility ?? null,
-          input.approvalRequired ?? null
+          input.approvalRequired ?? null,
+          input.goalTickets ?? null,
+          input.goalRevenueInr ?? null,
+          input.maxCapacity ?? null
         ]
       );
     } else {

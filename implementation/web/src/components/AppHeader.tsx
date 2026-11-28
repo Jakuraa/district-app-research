@@ -12,10 +12,10 @@ interface AppHeaderProps {
 
 const SECONDARY_TABS = [
     { href: "/", label: "For You", match: (p: string) => p === "/" },
-    { href: "/dining", label: "Dining", match: (p: string) => p.startsWith("/dining") },
-    { href: "/movies", label: "Movies", match: (p: string) => p.startsWith("/movies") },
     { href: "/events", label: "Events", match: (p: string) => p.startsWith("/events") },
-    { href: "/play", label: "Play", match: (p: string) => p.startsWith("/play") }
+    { href: "/trips", label: "Trips", match: (p: string) => p.startsWith("/trips") },
+    { href: "/memberships", label: "Memberships", match: (p: string) => p.startsWith("/memberships") },
+    { href: "/organiser", label: "For Organisers", match: (p: string) => p.startsWith("/organiser") }
 ] as const;
 
 export function AppHeader({ cities, selectedCity = "all" }: AppHeaderProps) {
@@ -34,7 +34,7 @@ export function AppHeader({ cities, selectedCity = "all" }: AppHeaderProps) {
 
     function chooseCity(slug: string) {
         setCityModalOpen(false);
-        const base = pathname === "/events" || pathname === "/dining" || pathname === "/movies" || pathname === "/play"
+        const base = pathname === "/events" || pathname === "/trips" || pathname === "/memberships"
             ? pathname
             : "/";
         router.push(slug === "all" ? base : `${base}?city=${encodeURIComponent(slug)}`);
@@ -116,16 +116,14 @@ export function AppHeader({ cities, selectedCity = "all" }: AppHeaderProps) {
                     >
                         <option value="all">All</option>
                         <option value="events">Events</option>
-                        <option value="movies">Movies</option>
-                        <option value="dining">Dining</option>
-                        <option value="play">Play</option>
+                        <option value="artists">Artists</option>
                     </select>
                     <span className="hidden h-4 w-px bg-[#cbd0e0] sm:block" aria-hidden="true" />
                     <input
                         type="search"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search events, movies, dining, artists..."
+                        placeholder="Search events, parties, artists, venues..."
                         aria-label="Search NIGHTLIFEZ"
                         className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-xs text-[#111319] placeholder:text-[#5e6473] outline-none sm:text-sm"
                     />
@@ -205,7 +203,7 @@ export function AppHeader({ cities, selectedCity = "all" }: AppHeaderProps) {
                         <div className="flex items-center justify-between border-b border-[#e4e6f0] pb-3">
                             <div>
                                 <h2 className="text-base font-extrabold text-[#111319]">Select Location</h2>
-                                <p className="text-xs text-[#5e6473]">Personalize events, dining, movies & play</p>
+                                <p className="text-xs text-[#5e6473]">Personalize events, nightlife &amp; live experiences</p>
                             </div>
                             <button
                                 type="button"

@@ -1,20 +1,8 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
-import {
-  ActivityCard,
-  ArtistCard,
-  EmptyState,
-  MovieCard,
-  RestaurantCard
-} from "@/components/DiscoveryCards";
+import { ArtistCard, EmptyState } from "@/components/DiscoveryCards";
 import { EventCard } from "@/components/EventCard";
-import {
-  listActivities,
-  listArtists,
-  listCitiesAndEvents,
-  listMovies,
-  listRestaurants
-} from "@/lib/repository";
+import { listArtists, listCitiesAndEvents } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +14,10 @@ export default async function SearchPage({
   const sp = await searchParams;
   const q = sp.q ?? "";
   const city = sp.city ?? "all";
-  const scope = sp.type ?? "all";
+  const scope = sp.type === "events" || sp.type === "artists" ? sp.type : "all";
 
-  const [{ cities, events }, movies, restaurants, activities, artists] = await Promise.all([
+  const [{ cities, events }, artists] = await Promise.all([
     listCitiesAndEvents({ q, city }),
-    listMovies({ q, city }),
-    listRestaurants({ q, city }),
-    listActivities({ q, city }),
     listArtists(city)
   ]);
 
@@ -44,12 +29,10 @@ export default async function SearchPage({
       )
     : artists.slice(0, 4);
 
-  const suggestions = ["Solstice", "Coimbatore", "Comedy", "IMAX", "Tamarind", "Padel"];
+  const suggestions = ["Solstice", "Coimbatore", "Comedy", "Bengaluru", "Goa", "Techno"];
   const totalCount =
     (scope === "all" || scope === "events" ? events.length : 0) +
-    (scope === "all" || scope === "movies" ? movies.length : 0) +
-    (scope === "all" || scope === "dining" ? restaurants.length : 0) +
-    (scope === "all" || scope === "play" ? activities.length : 0);
+    (scope === "all" || scope === "artists" ? matchingArtists.length : 0);
 
   return (
     <div className="min-h-screen pb-14">
@@ -61,7 +44,7 @@ export default async function SearchPage({
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Search events, movies, restaurants, activities, or artists..."
+            placeholder="Search events, parties, artists, or venues..."
             aria-label="Search NIGHTLIFEZ"
             className="min-w-0 flex-1 rounded-2xl border border-[#e4e6f0] bg-white px-4 py-3 text-sm outline-none focus:border-[#5b3df5]"
           />
@@ -71,11 +54,9 @@ export default async function SearchPage({
             aria-label="Filter search category"
             className="rounded-2xl border border-[#e4e6f0] bg-white px-3 py-3 text-sm font-semibold text-[#111319]"
           >
-            <option value="all">All Categories</option>
+            <option value="all">All</option>
             <option value="events">Events</option>
-            <option value="movies">Movies</option>
-            <option value="dining">Dining</option>
-            <option value="play">Play & Activities</option>
+            <option value="artists">Artists</option>
           </select>
           <button
             type="submit"
@@ -98,12 +79,12 @@ export default async function SearchPage({
           ))}
         </div>
 
-        {totalCount === 0 && matchingArtists.length === 0 ? (
+        {totalCount === 0 ? (
           <EmptyState
             title={`No results matched "${q}"`}
-            description="Try searching for a city, genre, artist, cinema, or restaurant."
-            actionHref="/search"
-            actionLabel="Clear Search"
+            description="Try searching for a city, genre, artist, or event."
+            actionHref="/events"
+            actionLabel="Browse Events"
           />
         ) : (
           <div className="space-y-8">
@@ -120,51 +101,14 @@ export default async function SearchPage({
               </section>
             ) : null}
 
-            {scope === "all" && matchingArtists.length > 0 ? (
+            {(scope === "all" || scope === "artists") && matchingArtists.length > 0 ? (
               <section>
-                <h2 className="mb-3 text-lg font-extrabold text-[#111319]">Artists</h2>
+                <h2 className="mb-3 text-lg font-extrabold text-[#111319]">
+                  Artists ({matchingArtists.length})
+                </h2>
                 <div className="flex gap-3 overflow-x-auto pb-2">
                   {matchingArtists.map((artist) => (
                     <ArtistCard key={artist.slug} artist={artist} />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {(scope === "all" || scope === "movies") && movies.length > 0 ? (
-              <section>
-                <h2 className="mb-3 text-lg font-extrabold text-[#111319]">
-                  Movies ({movies.length})
-                </h2>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  {movies.map((m) => (
-                    <MovieCard key={m.id} movie={m} />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {(scope === "all" || scope === "dining") && restaurants.length > 0 ? (
-              <section>
-                <h2 className="mb-3 text-lg font-extrabold text-[#111319]">
-                  Dining ({restaurants.length})
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {restaurants.map((r) => (
-                    <RestaurantCard key={r.id} restaurant={r} />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {(scope === "all" || scope === "play") && activities.length > 0 ? (
-              <section>
-                <h2 className="mb-3 text-lg font-extrabold text-[#111319]">
-                  Play & Activities ({activities.length})
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {activities.map((a) => (
-                    <ActivityCard key={a.id} activity={a} />
                   ))}
                 </div>
               </section>

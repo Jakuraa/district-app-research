@@ -8,7 +8,9 @@ export type EventCategory =
   | "parties"
   | "music"
   | "sports"
-  | "workshops";
+  | "workshops"
+  | "meetups"
+  | "experiences";
 
 export type DiscoveryVertical = "for-you" | "dining" | "movies" | "events" | "play";
 
@@ -241,6 +243,119 @@ export interface Offer {
   isActive: boolean;
 }
 
+export interface Promoter {
+  id: string;
+  organizationId: string;
+  eventId: string | null;
+  name: string;
+  email: string;
+  phone: string | null;
+  referralCode: string;
+  commissionPercent: number;
+  commissionFlatInr: number;
+  isActive: boolean;
+  createdAt: string;
+  referredBookings?: number;
+  referredRevenueInr?: number;
+  earnedCommissionInr?: number;
+  paidCommissionInr?: number;
+}
+
+export interface PromoterPayout {
+  id: string;
+  promoterId: string;
+  organizationId: string;
+  amountInr: number;
+  paymentRef: string;
+  note: string | null;
+  paidBy: string;
+  paidAt: string;
+}
+
+export interface TripPickupPoint {
+  id: string;
+  label: string;
+  timeLabel: string;
+  address: string;
+}
+
+export interface TripListing {
+  id: string;
+  organizationId: string;
+  organizationName?: string;
+  slug: string;
+  title: string;
+  destination: string;
+  citySlug: string;
+  departureLabel: string;
+  returnLabel: string;
+  priceInr: number;
+  advanceInr: number;
+  totalSeats: number;
+  remainingSeats: number;
+  pickupPoints: TripPickupPoint[];
+  summary: string;
+  lifecycleStatus: EventLifecycleStatus;
+  createdAt: string;
+}
+
+export interface TripBookingRecord {
+  id: string;
+  tripId: string;
+  tripTitle?: string;
+  organizationId: string;
+  referenceCode: string;
+  travellerName: string;
+  travellerEmail: string;
+  travellerPhone: string;
+  pickupPointId: string;
+  pickupPointLabel: string;
+  seats: number;
+  totalInr: number;
+  advanceInr: number;
+  paidInr: number;
+  balanceInr: number;
+  approvalStatus: "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
+  paymentStatus: "PENDING" | "AWAITING_VERIFICATION" | "ADVANCE_PAID" | "FULLY_PAID" | "REJECTED";
+  upiTxRef: string | null;
+  boarded: boolean;
+  boardedAt: string | null;
+  createdAt: string;
+}
+
+export interface MembershipPlan {
+  id: string;
+  organizationId: string;
+  organizationName?: string;
+  slug: string;
+  name: string;
+  description: string;
+  priceInr: number;
+  durationDays: number;
+  perks: string[];
+  privateInviteUrl: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface MembershipRecord {
+  id: string;
+  planId: string;
+  planName?: string;
+  organizationId: string;
+  referenceCode: string;
+  memberName: string;
+  memberEmail: string;
+  memberPhone: string;
+  status: "PENDING_PAYMENT" | "AWAITING_VERIFICATION" | "ACTIVE" | "EXPIRED" | "REJECTED";
+  upiTxRef: string | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  reminderSentAt: string | null;
+  privateInviteUrl?: string | null;
+  createdAt: string;
+}
+
 export interface ArtistLineupEntry {
   slug?: string;
   name: string;
@@ -269,6 +384,9 @@ export interface PulseEvent {
   approvalRequired?: boolean;
   clonedFromEventId?: string | null;
   moderationNotes?: string | null;
+  goalTickets?: number | null;
+  goalRevenueInr?: number | null;
+  maxCapacity?: number | null;
   startsAt: string;
   endsAt: string;
   dateLabel: string;
@@ -461,6 +579,7 @@ export interface BookingRecord {
   rejectionReason?: string | null;
   cancellationReason?: string | null;
   cancelledAt?: string | null;
+  referralCode?: string | null;
   createdAt: string;
   items: BookingItem[];
   attendees?: BookingAttendeeRecord[];

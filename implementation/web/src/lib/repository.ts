@@ -697,6 +697,7 @@ export async function listBookings(filters?: {
     paymentVerifiedBy: r.payment_verified_by ? String(r.payment_verified_by) : null,
     paymentRejectionReason: r.payment_rejection_reason ? String(r.payment_rejection_reason) : null,
     paymentExpiresAt: r.payment_expires_at ? new Date(String(r.payment_expires_at)).toISOString() : null,
+    referralCode: r.referral_code ? String(r.referral_code) : null,
     bookingSource: (r.booking_source as BookingRecord["bookingSource"]) ?? "ONLINE",
     approvalStatus: (r.approval_status as BookingRecord["approvalStatus"]) ?? "NOT_REQUIRED",
     approvalToken: r.approval_token ? String(r.approval_token) : null,
@@ -805,6 +806,9 @@ export async function createDemoBooking(
     });
     paymentAttempt = { state: initRes.state as "PENDING", transactionRef: initRes.transactionRef, message: initRes.message };
   } else {
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error("Organiser Direct UPI payment is required in production.");
+    }
     const demoRes = await executeDemoPaymentAdapter({
       amountInr: breakdown.totalInr,
       simulateOutcome: input.simulatePaymentOutcome
@@ -947,6 +951,7 @@ export async function createDemoBooking(
       paymentRef: paymentAttempt.transactionRef,
       paymentChannel: isDirectUpi ? "ORGANISER_UPI" : "DEMO_SANDBOX",
       paymentExpiresAt: paymentExpiresAtIso,
+      referralCode: input.referralCode?.trim().toUpperCase() || null,
       bookingSource: "ONLINE",
       approvalStatus: requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
       createdAt: nowIso,
@@ -1097,8 +1102,8 @@ export async function createDemoBooking(
          attendee_email, attendee_name, event_id, event_slug,
          event_title, venue_name, date_label, offer_code, subtotal_inr, discount_inr,
          convenience_fee_inr, gst_inr, total_inr, status, payment_mode, payment_status, payment_ref,
-         approval_status, booking_source, payment_channel, payment_expires_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'DEMO_NO_CHARGE',$21,$22,$23,'ONLINE',$24,$25)
+         approval_status, booking_source, payment_channel, payment_expires_at, referral_code
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'DEMO_NO_CHARGE',$21,$22,$23,'ONLINE',$24,$25,$26)
        RETURNING created_at`,
       [
         bookingId,
@@ -1129,7 +1134,8 @@ export async function createDemoBooking(
         paymentAttempt.transactionRef,
         requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
         isDirectUpi ? "ORGANISER_UPI" : "DEMO_SANDBOX",
-        paymentExpiresAtIso
+        paymentExpiresAtIso,
+        input.referralCode?.trim().toUpperCase() || null
       ]
     );
 
@@ -1265,6 +1271,7 @@ export async function createDemoBooking(
       paymentRef: paymentAttempt.transactionRef,
       paymentChannel: isDirectUpi ? "ORGANISER_UPI" : "DEMO_SANDBOX",
       paymentExpiresAt: paymentExpiresAtIso,
+      referralCode: input.referralCode?.trim().toUpperCase() || null,
       bookingSource: "ONLINE",
       approvalStatus: requiresApproval ? "PENDING_APPROVAL" : "NOT_REQUIRED",
       createdAt: new Date(String(insertRes.rows[0].created_at)).toISOString(),

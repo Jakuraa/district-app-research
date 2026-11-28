@@ -20,10 +20,6 @@ import {
 export const dynamic = "force-dynamic";
 
 function categoryHref(key: string, city: string) {
-  const qs = city !== "all" ? `?city=${encodeURIComponent(city)}` : "";
-  if (key === "dining") return `/dining${qs}`;
-  if (key === "movies") return `/movies${qs}`;
-  if (key === "activities" || key === "sports") return `/play${qs}`;
   const params = new URLSearchParams();
   if (city !== "all") params.set("city", city);
   params.set("category", key);
@@ -140,7 +136,7 @@ export default async function HomePage({
             title="Discover by Category"
             subtitle="Jump straight into what you feel like doing tonight"
           />
-          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 lg:grid-cols-9">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
             {DISCOVERY_CATEGORIES.map((cat) => (
               <Link
                 key={cat.key}

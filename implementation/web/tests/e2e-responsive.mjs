@@ -7,6 +7,7 @@ const DEMO_PASS = process.env.NIGHTLIFEZ_SANDBOX_DEMO_PASSWORD ?? "NightlifezDem
 const VIEWPORTS = [
   { width: 320, height: 568 },
   { width: 360, height: 640 },
+  { width: 375, height: 812 },
   { width: 390, height: 844 },
   { width: 430, height: 932 },
   { width: 768, height: 1024 },
@@ -64,7 +65,7 @@ async function run() {
     // 3. Responsive viewport horizontal-overflow checks across 8 required viewports
     for (const vp of VIEWPORTS) {
       await page.setViewportSize(vp);
-      for (const route of ["/", "/events", "/events/solstice-soundwave-bengaluru-2026/book", "/organiser", "/admin", "/staff"]) {
+      for (const route of ["/", "/events", "/trips", "/memberships", "/events/solstice-soundwave-bengaluru-2026/book", "/organiser", "/admin", "/staff"]) {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: "domcontentloaded" });
         const overflow = await page.evaluate(() => {
           return document.documentElement.scrollWidth > window.innerWidth + 1;

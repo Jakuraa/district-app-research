@@ -23,6 +23,11 @@ import {
   OrganiserStorefrontPanel
 } from "@/components/OrganiserMilestonePanel";
 import { OrganiserPaymentsPanel } from "@/components/OrganiserPaymentsPanel";
+import {
+  OrganiserMembershipsPanel,
+  OrganiserPromotersPanel,
+  OrganiserTripsPanel
+} from "@/components/OrganiserCommunityPanels";
 
 interface OrganiserOverview {
   organizations: Organization[];
@@ -41,7 +46,7 @@ export default function OrganiserPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<
-    "analytics" | "storefront" | "payments" | "events" | "approvals" | "guests" | "offers" | "orders" | "staff" | "finance"
+    "analytics" | "storefront" | "payments" | "events" | "approvals" | "guests" | "offers" | "promoters" | "trips" | "memberships" | "orders" | "staff" | "finance"
   >("analytics");
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -51,16 +56,27 @@ export default function OrganiserPortalPage() {
   const [dupDateLabel, setDupDateLabel] = useState("Sat, 16 Jan · 7:00 PM");
   const [questionEventId, setQuestionEventId] = useState<string | null>(null);
 
-  // Create Event form state
+  // Create / Edit Event form state
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [evtTitle, setEvtTitle] = useState("");
   const [evtCategory, setEvtCategory] = useState("concerts");
   const [evtCity, setEvtCity] = useState("bengaluru");
   const [evtVenue, setEvtVenue] = useState("skyline-amphitheatre-bengaluru");
   const [evtDateLabel, setEvtDateLabel] = useState("Sat, 26 Dec · 7:00 PM");
   const [evtSummary, setEvtSummary] = useState("");
-  const [tierName, setTierName] = useState("General Admission");
-  const [tierPrice, setTierPrice] = useState("999");
-  const [tierQuota, setTierQuota] = useState("200");
+  const [evtGoalTickets, setEvtGoalTickets] = useState("");
+  const [evtGoalRevenue, setEvtGoalRevenue] = useState("");
+  const [evtMaxCapacity, setEvtMaxCapacity] = useState("");
+  const [tiersDraft, setTiersDraft] = useState<
+    { id?: string; name: string; priceInr: string; totalQuota: string; maxPerOrder: string }[]
+  >([{ name: "General Admission", priceInr: "999", totalQuota: "200", maxPerOrder: "6" }]);
+
+  // Organiser Registration state (for authenticated users without an org)
+  const [regName, setRegName] = useState("");
+  const [regLegalName, setRegLegalName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regCity, setRegCity] = useState("bengaluru");
+  const [regMsg, setRegMsg] = useState<string | null>(null);
 
   // Create Offer state
   const [offerEventId, setOfferEventId] = useState("");
@@ -109,6 +125,62 @@ export default function OrganiserPortalPage() {
     void loadOverview();
   }, []);
 
+  function startEditEvent(evt: PulseEvent) {
+    setEditingEventId(evt.id);
+    setEvtTitle(evt.title);
+    setEvtCategory(evt.category);
+    setEvtCity(evt.citySlug);
+    setEvtVenue(evt.venueSlug);
+    setEvtDateLabel(evt.dateLabel);
+    setEvtSummary(evt.summary);
+    setEvtVisibility(evt.visibility ?? "PUBLIC");
+    setEvtApprovalRequired(Boolean(evt.approvalRequired));
+    setEvtGoalTickets(evt.goalTickets ? String(evt.goalTickets) : "");
+    setEvtGoalRevenue(evt.goalRevenueInr ? String(evt.goalRevenueInr) : "");
+    setEvtMaxCapacity(evt.maxCapacity ? String(evt.maxCapacity) : "");
+    setTiersDraft(
+      evt.tiers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        priceInr: String(t.priceInr),
+        totalQuota: String(t.totalQuota),
+        maxPerOrder: String(t.maxPerOrder)
+      }))
+    );
+  }
+
+  function resetEventForm() {
+    setEditingEventId(null);
+    setEvtTitle("");
+    setEvtSummary("");
+    setEvtGoalTickets("");
+    setEvtGoalRevenue("");
+    setEvtMaxCapacity("");
+    setTiersDraft([{ name: "General Admission", priceInr: "999", totalQuota: "200", maxPerOrder: "6" }]);
+  }
+
+  async function handleRegisterOrganiser(e: React.FormEvent) {
+    e.preventDefault();
+    setRegMsg(null);
+    const res = await fetch("/api/organiser/organizations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: regName,
+        legalName: regLegalName,
+        contactEmail: regEmail,
+        citySlug: regCity
+      })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setRegMsg(json?.error ?? "Could not register organiser brand.");
+      return;
+    }
+    setRegMsg(`Registered "${json.organization.name}". Reloading console...`);
+    await loadOverview();
+  }
+
   async function handleCreateEvent(e: React.FormEvent) {
     e.preventDefault();
     setNotice(null);
@@ -119,6 +191,7 @@ export default function OrganiserPortalPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        ...(editingEventId ? { id: editingEventId } : {}),
         organizationId: orgId,
         title: evtTitle,
         category: evtCategory,
@@ -131,27 +204,29 @@ export default function OrganiserPortalPage() {
         lifecycleStatus: "PUBLISHED",
         visibility: evtVisibility,
         approvalRequired: evtApprovalRequired,
+        goalTickets: evtGoalTickets ? Number(evtGoalTickets) : null,
+        goalRevenueInr: evtGoalRevenue ? Number(evtGoalRevenue) : null,
+        maxCapacity: evtMaxCapacity ? Number(evtMaxCapacity) : null,
         activePhase: "GENERAL_SALE",
-        tiers: [
-          {
-            sectionId,
-            name: tierName,
-            description: "Standard access tier",
-            priceInr: Number(tierPrice),
-            totalQuota: Number(tierQuota),
-            maxPerOrder: 6
-          }
-        ]
+        tiers: tiersDraft.map((t) => ({
+          ...(t.id ? { id: t.id } : {}),
+          sectionId,
+          name: t.name,
+          description: "Standard access tier",
+          priceInr: Number(t.priceInr),
+          totalQuota: Number(t.totalQuota),
+          maxPerOrder: Number(t.maxPerOrder) || 6
+        }))
       })
     });
     const json = await res.json();
     if (!res.ok) {
-      setNotice(json?.error ?? "Failed to create event");
+      setNotice(json?.error ?? "Failed to save event");
       return;
     }
-    setEvtTitle("");
-    setEvtSummary("");
-    setNotice(`Event "${json.event.title}" published.`);
+    const wasEditing = Boolean(editingEventId);
+    resetEventForm();
+    setNotice(`Event "${json.event.title}" ${wasEditing ? "updated" : "published"}.`);
     await loadOverview();
   }
 
@@ -331,15 +406,35 @@ export default function OrganiserPortalPage() {
             Loading organiser workspace...
           </div>
         ) : error ? (
-          <div className="rounded-3xl border border-[#dc2626] bg-white p-6">
-            <h2 className="text-base font-extrabold text-[#dc2626]">Protected Organiser Portal</h2>
-            <p className="mt-1 text-sm text-[#5e6473]">{error}</p>
-            <Link
-              href="/account"
-              className="mt-4 inline-block rounded-xl bg-[#5b3df5] px-4 py-2 text-xs font-bold text-white"
-            >
-              Sign in with an Organiser Account →
-            </Link>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="rounded-3xl border border-[#dc2626] bg-white p-6">
+              <h2 className="text-base font-extrabold text-[#dc2626]">Protected Organiser Portal</h2>
+              <p className="mt-1 text-sm text-[#5e6473]">{error}</p>
+              <Link
+                href="/account"
+                className="mt-4 inline-block rounded-xl bg-[#5b3df5] px-4 py-2 text-xs font-bold text-white"
+              >
+                Sign in with an Organiser Account →
+              </Link>
+            </div>
+            <form onSubmit={handleRegisterOrganiser} className="space-y-3 rounded-3xl border border-[#e4e6f0] bg-white p-6">
+              <h2 className="text-base font-extrabold text-[#111319]">Become an Organiser</h2>
+              <p className="text-xs text-[#5e6473]">Already signed in? Register your organiser brand to launch events, trips &amp; memberships.</p>
+              {regMsg ? <div className="rounded-xl bg-[#efeafe] px-3 py-2 text-xs font-bold text-[#5b3df5]">{regMsg}</div> : null}
+              <input type="text" required value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="Brand / Collective Name" className="w-full rounded-xl border border-[#e4e6f0] px-3 py-2 text-xs" />
+              <input type="text" required value={regLegalName} onChange={(e) => setRegLegalName(e.target.value)} placeholder="Legal Entity Name" className="w-full rounded-xl border border-[#e4e6f0] px-3 py-2 text-xs" />
+              <div className="grid grid-cols-2 gap-2">
+                <input type="email" required value={regEmail} onChange={(e) => setRegEmail(e.target.value)} placeholder="Contact Email" className="rounded-xl border border-[#e4e6f0] px-3 py-2 text-xs" />
+                <select value={regCity} onChange={(e) => setRegCity(e.target.value)} className="rounded-xl border border-[#e4e6f0] bg-white px-3 py-2 text-xs font-bold">
+                  {SEED_CITIES.map((c) => (
+                    <option key={c.slug} value={c.slug}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="w-full rounded-xl bg-[#111319] py-2.5 text-xs font-extrabold text-white">
+                Register Organiser Brand
+              </button>
+            </form>
           </div>
         ) : data ? (
           <>
@@ -350,7 +445,7 @@ export default function OrganiserPortalPage() {
             ) : null}
 
             <div className="flex flex-wrap gap-2">
-              {(["analytics", "storefront", "payments", "events", "approvals", "guests", "offers", "orders", "staff", "finance"] as const).map((t) => (
+              {(["analytics", "storefront", "payments", "events", "approvals", "guests", "offers", "promoters", "trips", "memberships", "orders", "staff", "finance"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -461,10 +556,49 @@ export default function OrganiserPortalPage() {
               />
             ) : null}
 
+            {tab === "promoters" && data.organizations.length > 0 ? (
+              <OrganiserPromotersPanel
+                org={data.organizations.find((o) => o.id === selectedOrgId) ?? data.organizations[0]!}
+                onUpdated={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
+            {tab === "trips" && data.organizations.length > 0 ? (
+              <OrganiserTripsPanel
+                org={data.organizations.find((o) => o.id === selectedOrgId) ?? data.organizations[0]!}
+                onUpdated={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
+            {tab === "memberships" && data.organizations.length > 0 ? (
+              <OrganiserMembershipsPanel
+                org={data.organizations.find((o) => o.id === selectedOrgId) ?? data.organizations[0]!}
+                onUpdated={async (msg) => {
+                  setNotice(msg);
+                  await loadOverview();
+                }}
+              />
+            ) : null}
+
             {tab === "events" ? (
               <section className="grid gap-6 lg:grid-cols-12">
                 <form onSubmit={handleCreateEvent} className="space-y-3 rounded-2xl border border-[#e4e6f0] bg-white p-5 lg:col-span-5">
-                  <h2 className="text-base font-extrabold text-[#111319]">Create & Publish Event</h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-base font-extrabold text-[#111319]">
+                      {editingEventId ? "Edit Event" : "Create & Publish Event"}
+                    </h2>
+                    {editingEventId ? (
+                      <button type="button" onClick={resetEventForm} className="text-xs font-bold text-[#dc2626]">
+                        Cancel Edit
+                      </button>
+                    ) : null}
+                  </div>
                   <input
                     type="text"
                     required
@@ -476,10 +610,15 @@ export default function OrganiserPortalPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <select value={evtCategory} onChange={(e) => setEvtCategory(e.target.value)} className="rounded-xl border border-[#e4e6f0] bg-white px-2.5 py-2 text-xs font-bold">
                       <option value="concerts">Concerts</option>
+                      <option value="parties">Parties</option>
                       <option value="festivals">Festivals</option>
-                      <option value="comedy">Comedy</option>
                       <option value="nightlife">Nightlife</option>
+                      <option value="comedy">Comedy</option>
                       <option value="music">Music</option>
+                      <option value="sports">Sports</option>
+                      <option value="workshops">Workshops</option>
+                      <option value="meetups">Meetups</option>
+                      <option value="experiences">Experiences</option>
                     </select>
                     <select value={evtCity} onChange={(e) => setEvtCity(e.target.value)} className="rounded-xl border border-[#e4e6f0] bg-white px-2.5 py-2 text-xs font-bold">
                       {data.cities.map((c) => (
@@ -508,10 +647,87 @@ export default function OrganiserPortalPage() {
                     placeholder="Event summary (min 10 chars)"
                     className="w-full rounded-xl border border-[#e4e6f0] px-3 py-2 text-sm"
                   />
+                  <div className="space-y-2 rounded-xl bg-[#f6f7fb] p-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-[#5e6473]">
+                      <span>Ticket Tiers ({tiersDraft.length})</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTiersDraft((prev) => [
+                            ...prev,
+                            { name: "VIP Pass", priceInr: "2499", totalQuota: "50", maxPerOrder: "4" }
+                          ])
+                        }
+                        className="text-[#5b3df5]"
+                      >
+                        + Add Tier
+                      </button>
+                    </div>
+                    {tiersDraft.map((t, idx) => (
+                      <div key={idx} className="grid grid-cols-4 gap-1.5">
+                        <input
+                          type="text"
+                          value={t.name}
+                          onChange={(e) =>
+                            setTiersDraft((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, name: e.target.value } : row))
+                            )
+                          }
+                          placeholder="Tier"
+                          className="rounded-lg border border-[#e4e6f0] bg-white px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          type="number"
+                          value={t.priceInr}
+                          onChange={(e) =>
+                            setTiersDraft((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, priceInr: e.target.value } : row))
+                            )
+                          }
+                          placeholder="INR"
+                          className="rounded-lg border border-[#e4e6f0] bg-white px-2 py-1.5 text-xs"
+                        />
+                        <input
+                          type="number"
+                          value={t.totalQuota}
+                          onChange={(e) =>
+                            setTiersDraft((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, totalQuota: e.target.value } : row))
+                            )
+                          }
+                          placeholder="Quota"
+                          className="rounded-lg border border-[#e4e6f0] bg-white px-2 py-1.5 text-xs"
+                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={t.maxPerOrder}
+                            onChange={(e) =>
+                              setTiersDraft((prev) =>
+                                prev.map((row, i) => (i === idx ? { ...row, maxPerOrder: e.target.value } : row))
+                              )
+                            }
+                            placeholder="Max"
+                            title="Max per order"
+                            className="w-full rounded-lg border border-[#e4e6f0] bg-white px-2 py-1.5 text-xs"
+                          />
+                          {tiersDraft.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => setTiersDraft((prev) => prev.filter((_, i) => i !== idx))}
+                              className="text-xs font-bold text-[#dc2626]"
+                            >
+                              ×
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   <div className="grid grid-cols-3 gap-2">
-                    <input type="text" value={tierName} onChange={(e) => setTierName(e.target.value)} placeholder="Tier" className="rounded-xl border border-[#e4e6f0] px-2 py-2 text-xs" />
-                    <input type="number" value={tierPrice} onChange={(e) => setTierPrice(e.target.value)} placeholder="Price INR" className="rounded-xl border border-[#e4e6f0] px-2 py-2 text-xs" />
-                    <input type="number" value={tierQuota} onChange={(e) => setTierQuota(e.target.value)} placeholder="Quota" className="rounded-xl border border-[#e4e6f0] px-2 py-2 text-xs" />
+                    <input type="number" value={evtGoalTickets} onChange={(e) => setEvtGoalTickets(e.target.value)} placeholder="Goal tickets" className="rounded-xl border border-[#e4e6f0] px-2 py-1.5 text-xs" />
+                    <input type="number" value={evtGoalRevenue} onChange={(e) => setEvtGoalRevenue(e.target.value)} placeholder="Goal ₹" className="rounded-xl border border-[#e4e6f0] px-2 py-1.5 text-xs" />
+                    <input type="number" value={evtMaxCapacity} onChange={(e) => setEvtMaxCapacity(e.target.value)} placeholder="Max capacity" className="rounded-xl border border-[#e4e6f0] px-2 py-1.5 text-xs" />
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <label className="flex items-center gap-1.5 font-bold text-[#374151]">
@@ -529,7 +745,7 @@ export default function OrganiserPortalPage() {
                     </select>
                   </div>
                   <button type="submit" className="w-full rounded-xl bg-[#5b3df5] py-2.5 text-xs font-extrabold text-white">
-                    Publish Event
+                    {editingEventId ? "Save Event Changes" : "Publish Event"}
                   </button>
                 </form>
 
@@ -543,6 +759,7 @@ export default function OrganiserPortalPage() {
                         </div>
                         <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
                           <Link href={`/events/${evt.slug}`} className="rounded-lg border border-[#e4e6f0] px-2.5 py-1">Preview</Link>
+                          <button type="button" onClick={() => startEditEvent(evt)} className="rounded-lg border border-[#111319] px-2.5 py-1 text-[#111319]">Edit</button>
                           <button type="button" onClick={() => setDupTargetId(dupTargetId === evt.id ? null : evt.id)} className="rounded-lg border border-[#5b3df5] px-2.5 py-1 text-[#5b3df5]">Run it again</button>
                           <button type="button" onClick={() => setQuestionEventId(questionEventId === evt.id ? null : evt.id)} className="rounded-lg border border-[#e4e6f0] px-2.5 py-1">Questions</button>
                           <button type="button" onClick={() => void handleLifecycleToggle(evt, "PAUSED")} className="rounded-lg border border-[#d97706] px-2.5 py-1 text-[#d97706]">Pause</button>

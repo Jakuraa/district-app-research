@@ -10,10 +10,15 @@ export const dynamic = "force-dynamic";
 const CATEGORIES = [
   { key: "all", label: "All Events" },
   { key: "concerts", label: "Concerts" },
+  { key: "parties", label: "Parties" },
   { key: "festivals", label: "Festivals" },
+  { key: "nightlife", label: "Nightlife" },
   { key: "comedy", label: "Comedy" },
   { key: "music", label: "Music" },
-  { key: "parties", label: "Parties" }
+  { key: "sports", label: "Sports" },
+  { key: "workshops", label: "Workshops" },
+  { key: "meetups", label: "Meetups" },
+  { key: "experiences", label: "Experiences" }
 ] as const;
 
 const DATE_WINDOWS = [

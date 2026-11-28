@@ -142,6 +142,9 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFA
 ALTER TABLE events ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'PUBLIC';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS approval_required BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS cloned_from_event_id TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS goal_tickets INTEGER;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS goal_revenue_inr INTEGER;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS max_capacity INTEGER;
 
 CREATE TABLE IF NOT EXISTS booking_questions (
   id TEXT PRIMARY KEY,
@@ -257,6 +260,7 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_verified_at TIMESTAMPTZ;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_verified_by TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_rejection_reason TEXT;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_expires_at TIMESTAMPTZ;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS referral_code TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_idempotency ON bookings (idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_approval_token ON bookings (approval_token) WHERE approval_token IS NOT NULL;
@@ -496,3 +500,100 @@ CREATE TABLE IF NOT EXISTS wallet_recovery_challenges (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_recovery_one_active
   ON wallet_recovery_challenges (booking_id, attendee_email)
   WHERE consumed_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS promoters (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  event_id TEXT,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  referral_code TEXT UNIQUE NOT NULL,
+  commission_percent INTEGER NOT NULL DEFAULT 10,
+  commission_flat_inr INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS promoter_payouts (
+  id TEXT PRIMARY KEY,
+  promoter_id TEXT NOT NULL REFERENCES promoters(id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  amount_inr INTEGER NOT NULL,
+  payment_ref TEXT NOT NULL,
+  note TEXT,
+  paid_by TEXT NOT NULL,
+  paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS trips (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  slug TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  city_slug TEXT NOT NULL,
+  departure_label TEXT NOT NULL,
+  return_label TEXT NOT NULL,
+  price_inr INTEGER NOT NULL,
+  advance_inr INTEGER NOT NULL,
+  total_seats INTEGER NOT NULL,
+  remaining_seats INTEGER NOT NULL,
+  pickup_points_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  summary TEXT NOT NULL,
+  lifecycle_status TEXT NOT NULL DEFAULT 'PUBLISHED',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS trip_bookings (
+  id TEXT PRIMARY KEY,
+  trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  reference_code TEXT UNIQUE NOT NULL,
+  traveller_name TEXT NOT NULL,
+  traveller_email TEXT NOT NULL,
+  traveller_phone TEXT NOT NULL,
+  pickup_point_id TEXT NOT NULL,
+  pickup_point_label TEXT NOT NULL,
+  seats INTEGER NOT NULL DEFAULT 1,
+  total_inr INTEGER NOT NULL,
+  advance_inr INTEGER NOT NULL,
+  paid_inr INTEGER NOT NULL DEFAULT 0,
+  balance_inr INTEGER NOT NULL,
+  approval_status TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
+  payment_status TEXT NOT NULL DEFAULT 'PENDING',
+  upi_tx_ref TEXT,
+  boarded BOOLEAN NOT NULL DEFAULT FALSE,
+  boarded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS membership_plans (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  slug TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  price_inr INTEGER NOT NULL,
+  duration_days INTEGER NOT NULL DEFAULT 30,
+  perks_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+  private_invite_url TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS memberships (
+  id TEXT PRIMARY KEY,
+  plan_id TEXT NOT NULL REFERENCES membership_plans(id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  reference_code TEXT UNIQUE NOT NULL,
+  member_name TEXT NOT NULL,
+  member_email TEXT NOT NULL,
+  member_phone TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING_PAYMENT',
+  upi_tx_ref TEXT,
+  starts_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  reminder_sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
