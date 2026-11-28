@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eventQuerySchema } from "@pulsepass/shared";
+import { eventQuerySchema } from "@nightlifez/shared";
 import { listCitiesAndEvents } from "@/lib/repository";
 
 export async function GET(request: Request) {

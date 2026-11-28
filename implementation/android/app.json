@@ -1,21 +1,74 @@
 {
   "expo": {
-    "name": "PulsePass",
-    "slug": "pulsepass-events",
+    "name": "NIGHTLIFEZ",
+    "slug": "nightlifez",
     "version": "0.1.0",
     "orientation": "portrait",
-    "scheme": "pulsepass",
+    "scheme": "nightlifez",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111319"
+    },
     "android": {
-      "package": "com.pulsepass.events",
+      "package": "com.jakuraa.nightlifez",
       "versionCode": 1,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#5B3DF5"
       },
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "nightlifez"
+            },
+            {
+              "scheme": "https",
+              "host": "nightlifez.com",
+              "pathPrefix": "/events"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "plugins": [
-      "expo-router"
-    ]
+      "expo-router",
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow NIGHTLIFEZ Staff Scanner to use the camera to verify QR event tickets."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "898f278f-534b-46e9-9989-f39c5b90d2b3"
+      }
+    },
+    "owner": "jakuraa"
   }
 }

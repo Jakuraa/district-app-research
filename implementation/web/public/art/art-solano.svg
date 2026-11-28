@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#451a03"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#g)"/>
+  
+      <circle cx="200" cy="200" r="150" fill="#fdba74" opacity="0.25"/>
+      <circle cx="200" cy="155" r="56" fill="#ffffff" opacity="0.9"/>
+      <path d="M105 320 C 105 245, 295 245, 295 320 Z" fill="#ffffff" opacity="0.85"/>
+      <circle cx="200" cy="200" r="175" fill="none" stroke="#fdba74" stroke-width="3" stroke-dasharray="10 8" opacity="0.6"/>
+  <text x="200" y="362" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800">DJ Solano</text>
+  <text x="200" y="386" text-anchor="middle" fill="#e5e7eb" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600">Melodic House</text>
+</svg>

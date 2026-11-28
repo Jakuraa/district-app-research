@@ -1,19 +1,26 @@
 import { Pool } from "pg";
 
 declare global {
-  var __pulsepassPool: Pool | undefined;
+  var __nightlifezPool: Pool | undefined;
 }
 
 export function getPool(): Pool | null {
   const url = process.env.DATABASE_URL;
   if (!url) return null;
 
-  if (!globalThis.__pulsepassPool) {
-    globalThis.__pulsepassPool = new Pool({
+  if (!globalThis.__nightlifezPool) {
+    globalThis.__nightlifezPool = new Pool({
       connectionString: url,
       max: 5,
       ssl: url.includes("localhost") || url.includes("127.0.0.1") ? false : { rejectUnauthorized: false }
     });
   }
-  return globalThis.__pulsepassPool;
+  return globalThis.__nightlifezPool;
+}
+
+export async function resetPoolForTests(): Promise<void> {
+  if (globalThis.__nightlifezPool) {
+    await globalThis.__nightlifezPool.end().catch(() => {});
+    globalThis.__nightlifezPool = undefined;
+  }
 }

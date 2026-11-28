@@ -1,8 +1,8 @@
-# PulsePass — Original Product Specification
+# NIGHTLIFEZ — Original Product Specification
 
 ## 1. Product Identity & IP Boundary
 
-- **Product Name**: **PulsePass** (completely independent event discovery, venue guide, and ticketing platform)
+- **Product Name**: **NIGHTLIFEZ** (completely independent event discovery, venue guide, and ticketing platform)
 - **Separation**: Zero shared source code, database, secrets, Vercel project, or domain with NIGHTLIFEZ or District.
 - **Original Assets**: All branding, color tokens, typography, icons, copy, venue diagrams, and synthetic event catalog are original.
 

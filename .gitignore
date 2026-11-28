@@ -24,6 +24,7 @@ GoogleService-Info.plist
 !.env.example
 .vercel
 .vercel/**
+*.tsbuildinfo
 *.secret
 *credentials*.json
 *service-account*.json

@@ -1,0 +1,48 @@
+name: NIGHTLIFEZ Web CI
+
+on:
+  push:
+    branches: ["feature/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nightlifez_test
+          POSTGRES_PASSWORD: nightlifez_test_password
+          POSTGRES_DB: nightlifez_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm --prefix implementation/shared test
+      - name: Run isolated web unit tests
+        env:
+          DATABASE_URL: ""
+          NIGHTLIFEZ_AUTH_SECRET: ci-test-secret-with-at-least-32-bytes-entropy
+        run: npm --prefix implementation/web test
+      - name: Run PostgreSQL integration tests (rate-limit & wallet-recovery)
+        env:
+          DATABASE_URL: postgres://nightlifez_test:nightlifez_test_password@127.0.0.1:5432/nightlifez_test
+          TEST_DATABASE_URL: postgres://nightlifez_test:nightlifez_test_password@127.0.0.1:5432/nightlifez_test
+          NIGHTLIFEZ_AUTH_SECRET: ci-test-secret-with-at-least-32-bytes-entropy
+        run: |
+          node --experimental-strip-types --test implementation/web/tests/rate-limit-pg.test.ts
+          node --experimental-strip-types --test implementation/web/tests/wallet-recovery-pg.test.ts
+      - run: npm --prefix implementation/web run build

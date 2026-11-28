@@ -1,0 +1,25 @@
+{
+  "name": "nightlifez",
+  "private": true,
+  "workspaces": [
+    "implementation/shared",
+    "implementation/web"
+  ],
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=@nightlifez/web",
+    "build": "npm run build --workspace=@nightlifez/web",
+    "build:web": "npm run build --workspace=@nightlifez/web",
+    "lint:web": "npm run lint --workspace=@nightlifez/web",
+    "typecheck:shared": "npm run typecheck --workspace=@nightlifez/shared",
+    "typecheck:web": "npm run typecheck --workspace=@nightlifez/web",
+    "typecheck": "npm run typecheck --workspace=@nightlifez/shared && npm run typecheck --workspace=@nightlifez/web",
+    "test:shared": "npm test --workspace=@nightlifez/shared",
+    "test:web": "npm test --workspace=@nightlifez/web",
+    "test:android": "npm --prefix implementation/android test",
+    "test": "npm test --workspace=@nightlifez/shared && npm test --workspace=@nightlifez/web && npm --prefix implementation/android test",
+    "db:migrate": "npm run db:migrate --workspace=@nightlifez/web"
+  }
+}

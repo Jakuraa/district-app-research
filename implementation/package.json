@@ -1,11 +1,11 @@
 {
-  "name": "pulsepass-monorepo",
+  "name": "nightlifez-monorepo",
   "private": true,
   "scripts": {
-    "test:shared": "npm --prefix shared test",
-    "test:web": "npm --prefix web test",
+    "test:shared": "npm --prefix .. test --workspace=@nightlifez/shared",
+    "test:web": "npm --prefix .. test --workspace=@nightlifez/web",
     "test:android": "npm --prefix android test",
-    "build:web": "npm --prefix web run build",
-    "lint:web": "npm --prefix web run lint"
+    "build:web": "npm --prefix .. run build --workspace=@nightlifez/web",
+    "lint:web": "npm --prefix .. run lint --workspace=@nightlifez/web"
   }
 }

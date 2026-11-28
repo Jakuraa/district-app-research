@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#450a0a"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="600" fill="url(#g)"/>
+  
+      <rect x="40" y="40" width="320" height="520" rx="18" fill="none" stroke="#fca5a5" stroke-width="2" opacity="0.5"/>
+      <circle cx="200" cy="230" r="105" fill="#fca5a5" opacity="0.32"/>
+      <polygon points="175,185 175,275 245,230" fill="#ffffff" opacity="0.92"/>
+      <path d="M0 440 Q 200 380 400 450 L 400 600 L 0 600 Z" fill="#090b10" opacity="0.78"/>
+  <text x="40" y="532" text-anchor="start" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800">KAVERI CHRONICLES</text>
+  <text x="40" y="566" text-anchor="start" fill="#e5e7eb" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600">Tamil · Action Epic · UA 16+</text>
+</svg>
